@@ -1,0 +1,290 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 제품유형
+model ProductType {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  name           String
+  processingCost Float    @default(0)
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  simpleQuotations SimpleQuotation[]
+  processingCosts  ProcessingCost[]
+}
+
+// 가공비 이력
+model ProcessingCost {
+  id            String   @id @default(cuid())
+  productTypeId String
+  productType   ProductType @relation(fields: [productTypeId], references: [id])
+  cost          Float
+  effectiveDate DateTime
+  endDate       DateTime?
+  changeReason  String?
+  changedBy     String?
+  isCurrent     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
+
+// 공급사
+model Supplier {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  contact   String?
+  manager   String?
+  address   String?
+  email     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  materials Material[]
+}
+
+// 원료
+model Material {
+  id            String   @id @default(cuid())
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  code          String   @unique
+  name          String
+  category      String   @default("일반식품") // 건기식/일반식품
+  origin        String?
+  specification String?
+  unit          String   @default("kg")
+  unitPrice     Float
+  minOrderQty   Float?
+  isFunctional  Boolean  @default(false)
+  certifications String?
+  note          String?
+  updatedBy     String?  @default("관리자")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  priceHistory MaterialPrice[]
+}
+
+// 원료 가격 이력
+model MaterialPrice {
+  id           String   @id @default(cuid())
+  materialId   String
+  material     Material @relation(fields: [materialId], references: [id])
+  price        Float
+  effectiveDate DateTime
+  endDate      DateTime?
+  changedBy    String?
+  createdAt    DateTime @default(now())
+}
+
+// 일반견적서
+model SimpleQuotation {
+  id              String   @id @default(cuid())
+  quotationNo     String   @unique
+  productName     String
+  customerName    String?
+
+  productTypeId   String
+  productType     ProductType @relation(fields: [productTypeId], references: [id])
+
+  packageUnit     Int
+  bottleBoxCost   Float    @default(0)
+  setCount        Int      @default(1)
+
+  totalMaterialCost Float  @default(0)
+  totalAmount       Float  @default(0)
+
+  note            String?
+
+  items           SimpleQuotationItem[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// 일반견적서 원료 항목
+model SimpleQuotationItem {
+  id                String   @id @default(cuid())
+  quotationId       String
+  quotation         SimpleQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  sortOrder         Int
+  category          String
+  materialName      String
+  theoryAmount      Float    @default(0)
+  actualAmount      Float    @default(0)
+  kgUnitPrice       Float    @default(0)
+  materialCost      Float    @default(0)
+  origin            String?
+}
+
+// 상세견적서
+model DetailedQuotation {
+  id              String   @id @default(cuid())
+  quotationNo     String   @unique
+  productName     String
+  customerName    String?
+
+  productType     String
+  formType        String?
+  contentAmount   Float?
+  packageUnit     Int      @default(0)
+  intakeGuide     String?
+
+  productionQty   Int      @default(0)
+  unitWeight      Float    @default(0)
+  totalWeight     Float    @default(0)
+  yieldRate       Float    @default(100)
+  actualQty       Int      @default(0)
+  packagingMethod String?
+
+  inspectionCost  Float    @default(0)
+  managementCost  Float    @default(0)
+  deliveryCost    Float    @default(0)
+  designCost      Float    @default(0)
+  onetimeCost     Float    @default(0)
+
+  profitRate      Float    @default(5)
+
+  note            String?
+
+  materials       DetailedMaterialItem[]
+  supplies        DetailedSupplyItem[]
+  processes       DetailedProcessItem[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// 상세견적서 원료 항목
+model DetailedMaterialItem {
+  id              String   @id @default(cuid())
+  quotationId     String
+  quotation       DetailedQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  sortOrder       Int
+  materialName    String
+  specification   String?
+  mixRatio        Float    @default(0)
+  contentMg       Float    @default(0)
+  inputKg         Float    @default(0)
+  unitPrice       Float    @default(0)
+  totalPrice      Float    @default(0)
+  functionalContent String?
+  note            String?
+}
+
+// 상세견적서 자재 항목
+model DetailedSupplyItem {
+  id              String   @id @default(cuid())
+  quotationId     String
+  quotation       DetailedQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  sortOrder       Int
+  supplyName      String
+  specification   String?
+  quantity        Int      @default(0)
+  inputQty        Int      @default(0)
+  unitPrice       Float    @default(0)
+  totalPrice      Float    @default(0)
+  note            String?
+}
+
+// 상세견적서 공정 항목
+model DetailedProcessItem {
+  id              String   @id @default(cuid())
+  quotationId     String
+  quotation       DetailedQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  sortOrder       Int
+  processName     String
+  quantity        Int      @default(0)
+  unitCost        Float    @default(0)
+  totalCost       Float    @default(0)
+  note            String?
+}
+
+// 자재 마스터
+model Supply {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  unit          String   @default("개")
+  unitPrice     Float    @default(0)
+  specification String?
+  note          String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 공정 마스터
+model Process {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  unitCost      Float    @default(0)
+  description   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 임포트 매핑 템플릿
+model ImportTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  targetTable   String   // material, supply, process, customer, productType
+  mappingConfig String   // JSON: [{ sourceColumn, targetField }]
+  options       String?  // JSON: { duplicateHandling, emptyValueHandling, newOnly }
+  createdBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  importHistories ImportHistory[]
+}
+
+// 임포트 이력
+model ImportHistory {
+  id            String   @id @default(cuid())
+  templateId    String?
+  template      ImportTemplate? @relation(fields: [templateId], references: [id])
+  fileName      String
+  fileType      String   // xlsx, csv, pdf
+  targetTable   String
+  totalRows     Int      @default(0)
+  successCount  Int      @default(0)
+  errorCount    Int      @default(0)
+  warningCount  Int      @default(0)
+  status        String   @default("pending") // pending, processing, success, partial, failed
+  errorLog      String?  // JSON array of errors
+  createdBy     String?
+  createdAt     DateTime @default(now())
+}
+
+// 고객사
+model Customer {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  contact       String?
+  manager       String?
+  address       String?
+  email         String?
+  note          String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
