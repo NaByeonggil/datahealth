@@ -46,8 +46,8 @@ const menuItems: MenuItem[] = [
     label: "견적서",
     icon: <FileText className="h-4 w-4" />,
     children: [
-      { label: "일반견적서", href: "/quotation/simple", icon: <FileText className="h-4 w-4" /> },
-      { label: "상세견적서", href: "/quotation/detailed", icon: <FileSpreadsheet className="h-4 w-4" /> },
+      { label: "일반견적서", href: "/quotation/simple/new", icon: <FileText className="h-4 w-4" /> },
+      { label: "상세견적서", href: "/quotation/detailed/new", icon: <FileSpreadsheet className="h-4 w-4" /> },
       { label: "전체목록", href: "/quotation", icon: <FileText className="h-4 w-4" /> },
     ],
   },
@@ -185,7 +185,8 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-white px-6">
           <h1 className="text-lg font-semibold">
             {pathname === "/" && "대시보드"}
-            {pathname.startsWith("/quotation/simple") && "일반견적서"}
+            {pathname.startsWith("/quotation/simple") && !pathname.includes("/quotation/simple/new") && "일반견적서"}
+            {pathname.includes("/quotation/simple/new") && "일반견적서 작성"}
             {pathname.startsWith("/quotation/detailed") && "상세견적서"}
             {pathname === "/quotation" && "전체 견적서"}
             {pathname.startsWith("/master") && "마스터관리"}
