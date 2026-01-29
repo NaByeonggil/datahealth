@@ -11,7 +11,8 @@
     "db:migrate": "npx prisma migrate dev",
     "db:studio": "npx prisma studio",
     "backup": "bash scripts/backup.sh",
-    "restore": "bash scripts/restore.sh"
+    "restore": "bash scripts/restore.sh",
+    "setup": "bash scripts/setup.sh"
   },
   "dependencies": {
     "@fontsource/noto-sans-kr": "^5.2.9",
