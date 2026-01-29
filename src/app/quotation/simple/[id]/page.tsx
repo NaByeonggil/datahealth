@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileDown } from "lucide-react";
+import { toast } from "sonner";
+import { exportSimpleQuotationPdf } from "@/lib/exports/simpleQuotationPdf";
+import { exportSimpleQuotationExcel } from "@/lib/exports/simpleQuotationExcel";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("ko-KR");
 
@@ -52,8 +55,41 @@ export default function SimpleQuotationDetail() {
 
   if (!data) return <div className="p-6 text-center text-muted-foreground">불러오는 중...</div>;
 
-  const processingCost = data.packageUnit * (data.productType?.processingCost || 0);
+  const processingCostPerUnit = data.productType?.processingCost || 0;
+  const processingCost = data.packageUnit * processingCostPerUnit;
   const subtotal = data.totalMaterialCost + processingCost + data.bottleBoxCost;
+
+  const getExportData = () => ({
+    quotationNo: data.quotationNo,
+    productName: data.productName,
+    customerName: data.customerName || "",
+    packageUnit: data.packageUnit,
+    bottleBoxCost: data.bottleBoxCost,
+    setCount: data.setCount,
+    processingCostPerUnit,
+    note: data.note || "",
+    items: data.items,
+    totalMaterialCost: data.totalMaterialCost,
+    processingCost,
+    subtotal,
+    totalAmount: data.totalAmount,
+  });
+
+  const handleExportPdf = () => {
+    try {
+      exportSimpleQuotationPdf(getExportData());
+    } catch {
+      toast.error("PDF 내보내기에 실패했습니다.");
+    }
+  };
+
+  const handleExportExcel = () => {
+    try {
+      exportSimpleQuotationExcel(getExportData());
+    } catch {
+      toast.error("Excel 내보내기에 실패했습니다.");
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -61,7 +97,13 @@ export default function SimpleQuotationDetail() {
         <Button variant="ghost" size="sm" onClick={() => router.push("/quotation/simple")}>
           <ArrowLeft className="h-4 w-4 mr-1" />목록
         </Button>
-        <h2 className="text-xl font-bold">일반견적서 상세</h2>
+        <h2 className="text-xl font-bold flex-1">일반견적서 상세</h2>
+        <Button variant="outline" size="sm" onClick={handleExportPdf}>
+          <FileDown className="h-4 w-4 mr-1" />PDF
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleExportExcel}>
+          <FileDown className="h-4 w-4 mr-1" />Excel
+        </Button>
       </div>
 
       {/* 기본 정보 */}

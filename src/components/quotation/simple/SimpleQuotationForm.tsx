@@ -27,6 +27,8 @@ import { toast } from "sonner";
 import { ProductTypeType } from "@/types/quotation";
 import { useSimpleQuotationStore } from "@/store/quotationStore";
 import MaterialSearch from "@/components/quotation/MaterialSearch";
+import { exportSimpleQuotationPdf } from "@/lib/exports/simpleQuotationPdf";
+import { exportSimpleQuotationExcel } from "@/lib/exports/simpleQuotationExcel";
 
 function formatNumber(num: number): string {
   return num.toLocaleString("ko-KR");
@@ -64,6 +66,38 @@ export default function SimpleQuotationForm() {
     },
     [productTypes, store]
   );
+
+  const getExportData = useCallback(() => ({
+    quotationNo: store.quotationNo,
+    productName: store.productName,
+    customerName: store.customerName,
+    packageUnit: store.packageUnit,
+    bottleBoxCost: store.bottleBoxCost,
+    setCount: store.setCount,
+    processingCostPerUnit: store.processingCostPerUnit,
+    note: store.note,
+    items: store.items,
+    totalMaterialCost,
+    processingCost,
+    subtotal,
+    totalAmount,
+  }), [store, totalMaterialCost, processingCost, subtotal, totalAmount]);
+
+  const handleExportPdf = useCallback(() => {
+    try {
+      exportSimpleQuotationPdf(getExportData());
+    } catch {
+      toast.error("PDF 내보내기에 실패했습니다.");
+    }
+  }, [getExportData]);
+
+  const handleExportExcel = useCallback(() => {
+    try {
+      exportSimpleQuotationExcel(getExportData());
+    } catch {
+      toast.error("Excel 내보내기에 실패했습니다.");
+    }
+  }, [getExportData]);
 
   const handleSave = async () => {
     if (!store.productName) {
@@ -358,11 +392,11 @@ export default function SimpleQuotationForm() {
 
       {/* 액션 버튼 */}
       <div className="flex gap-3 justify-end">
-        <Button variant="outline" onClick={() => toast.info("PDF 내보내기 기능은 준비 중입니다.")}>
+        <Button variant="outline" onClick={handleExportPdf}>
           <FileDown className="h-4 w-4 mr-2" />
           PDF 내보내기
         </Button>
-        <Button variant="outline" onClick={() => toast.info("Excel 내보내기 기능은 준비 중입니다.")}>
+        <Button variant="outline" onClick={handleExportExcel}>
           <FileDown className="h-4 w-4 mr-2" />
           Excel 내보내기
         </Button>

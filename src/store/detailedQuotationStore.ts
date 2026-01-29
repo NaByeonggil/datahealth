@@ -61,16 +61,23 @@ const defaultState: DetailedQuotationState = {
   yieldRate: 100,
   actualQty: 0,
   packagingMethod: "",
-  inspectionCost: 0,
-  managementCost: 0,
-  deliveryCost: 0,
+  inspectionCost: 250000,
+  managementCost: 150000,
+  deliveryCost: 300000,
   designCost: 0,
   onetimeCost: 0,
   profitRate: 5,
   note: "",
   materials: [],
-  supplies: [],
-  processes: [],
+  supplies: [
+    { sortOrder: 1, supplyName: "스틱필름", specification: "", quantity: 1, inputQty: 6, unitPrice: 280000, totalPrice: 1 * 6 * 280000 },
+    { sortOrder: 2, supplyName: "단케이스", specification: "", quantity: 1, inputQty: 2000, unitPrice: 500, totalPrice: 1 * 2000 * 500 },
+    { sortOrder: 3, supplyName: "마감스티커", specification: "", quantity: 1, inputQty: 2000, unitPrice: 10, totalPrice: 1 * 2000 * 10 },
+    { sortOrder: 4, supplyName: "카톤", specification: "", quantity: 1, inputQty: 100, unitPrice: 2000, totalPrice: 1 * 100 * 2000 },
+  ],
+  processes: [
+    { sortOrder: 1, processName: "공정세트", quantity: 2000, unitCost: 3000, totalCost: 2000 * 3000 },
+  ],
 };
 
 export const useDetailedQuotationStore = create<DetailedQuotationState & DetailedQuotationActions>(
@@ -134,8 +141,8 @@ export const useDetailedQuotationStore = create<DetailedQuotationState & Detaile
       set((s) => {
         const supplies = [...s.supplies];
         const item = { ...supplies[index], [field]: value };
-        if (field === "inputQty" || field === "unitPrice") {
-          item.totalPrice = item.inputQty * item.unitPrice;
+        if (field === "quantity" || field === "inputQty" || field === "unitPrice") {
+          item.totalPrice = item.quantity * item.inputQty * item.unitPrice;
         }
         supplies[index] = item;
         return { supplies };
