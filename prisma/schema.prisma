@@ -288,3 +288,86 @@ model Customer {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+// AI 프로바이더 설정
+model AiSetting {
+  id            String   @id @default(cuid())
+  providerName  String   @unique // llama_5060ti, llama_780m, openai, claude
+  displayName   String
+  baseUrl       String
+  apiKey        String?
+  modelName     String
+  priority      Int      @default(0) // 낮을수록 우선
+  isActive      Boolean  @default(true)
+  maxTokens     Int      @default(2048)
+  temperature   Float    @default(0.7)
+  description   String?
+  lastTestedAt  DateTime?
+  lastTestResult String? // success, failed
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 문의 게시판
+model BoardInquiry {
+  id              String   @id @default(cuid())
+  title           String
+  content         String
+  authorName      String
+  authorEmail     String?
+  authorPhone     String?
+  status          String   @default("pending") // pending, ai_processing, ai_completed, human_review, responded, closed
+  inquiryType     String?  // quotation, product, simple, spam, urgent
+  priority        String   @default("normal") // low, normal, high, urgent
+  confidence      Float?   // AI 분류 신뢰도
+  extractedData   String?  // JSON: 추출된 핵심 정보
+  aiResponse      String?  // AI 생성 답변
+  adminResponse   String?  // 관리자 수동 답변
+  processedAt     DateTime?
+  respondedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// AI 처리 로그
+model AiProcessingLog {
+  id              String   @id @default(cuid())
+  taskType        String   // classify, extract, function_call, generate_response, chat
+  providerUsed    String   // 실제 사용된 프로바이더
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  latencyMs       Int      @default(0) // 응답 시간 (ms)
+  isSuccess       Boolean  @default(true)
+  isFallback      Boolean  @default(false) // 폴백으로 처리됐는지
+  fallbackFrom    String?  // 원래 시도한 프로바이더
+  errorMessage    String?
+  relatedId       String?  // 관련 문의/세션 ID
+  functionCalls   String?  // JSON: 호출된 함수 목록
+  createdAt       DateTime @default(now())
+}
+
+// AI 채팅 세션
+model AiChatSession {
+  id          String   @id @default(cuid())
+  title       String   @default("새 대화")
+  summary     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages    AiChatMessage[]
+}
+
+// AI 채팅 메시지
+model AiChatMessage {
+  id          String   @id @default(cuid())
+  sessionId   String
+  session     AiChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role        String   // user, assistant, function
+  content     String
+  functionName String?  // function 역할일 때 함수명
+  functionArgs String?  // JSON: 함수 인자
+  functionResult String? // JSON: 함수 실행 결과
+  tokenCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+}

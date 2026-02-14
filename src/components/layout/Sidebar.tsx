@@ -26,6 +26,11 @@ import {
   History,
   PanelLeftClose,
   PanelLeft,
+  Bot,
+  MessageSquare,
+  ClipboardList,
+  BarChart3,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +67,16 @@ const menuItems: MenuItem[] = [
       { label: "자재", href: "/master/supply", icon: <Box className="h-4 w-4" /> },
       { label: "공정", href: "/master/process", icon: <Cog className="h-4 w-4" /> },
       { label: "고객사", href: "/master/customer", icon: <Factory className="h-4 w-4" /> },
+    ],
+  },
+  {
+    label: "AI 어시스턴트",
+    icon: <Bot className="h-4 w-4" />,
+    children: [
+      { label: "AI 견적 채팅", href: "/ai/chat", icon: <MessageSquare className="h-4 w-4" /> },
+      { label: "문의 게시판", href: "/ai/board", icon: <ClipboardList className="h-4 w-4" /> },
+      { label: "AI 대시보드", href: "/ai/dashboard", icon: <BarChart3 className="h-4 w-4" /> },
+      { label: "AI 설정", href: "/ai/settings", icon: <Wrench className="h-4 w-4" /> },
     ],
   },
   {
@@ -190,6 +205,10 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
             {pathname.startsWith("/quotation/detailed") && "상세견적서"}
             {pathname === "/quotation" && "전체 견적서"}
             {pathname.startsWith("/master") && "마스터관리"}
+            {pathname === "/ai/chat" && "AI 견적 채팅"}
+            {pathname.startsWith("/ai/board") && "문의 게시판"}
+            {pathname === "/ai/dashboard" && "AI 대시보드"}
+            {pathname === "/ai/settings" && "AI 설정"}
             {pathname.startsWith("/import") && "임포트센터"}
             {pathname.startsWith("/settings") && "설정"}
           </h1>

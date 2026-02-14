@@ -35,6 +35,60 @@ async function main() {
     });
   }
 
+  // AI 프로바이더 설정
+  const aiProviders = [
+    {
+      providerName: "llama_5060ti",
+      displayName: "Llama (RTX 5060 Ti)",
+      baseUrl: process.env.AI_LLAMA_5060TI_URL || "http://192.168.0.20:8080/v1",
+      modelName: "llama-3-8b",
+      priority: 1,
+      description: "로컬 서버 (RTX 5060 Ti 16GB) - 주력 모델",
+    },
+    {
+      providerName: "llama_780m",
+      displayName: "Llama (780M)",
+      baseUrl: process.env.AI_LLAMA_780M_URL || "http://192.168.0.10:8080/v1",
+      modelName: "llama-3.2-3b",
+      priority: 2,
+      description: "로컬 서버 (780M 8GB) - 경량 모델 / 폴백",
+    },
+    {
+      providerName: "openai",
+      displayName: "OpenAI",
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: process.env.OPENAI_API_KEY || "",
+      modelName: "gpt-4o-mini",
+      priority: 3,
+      isActive: false,
+      description: "OpenAI 외부 API - 폴백용",
+    },
+    {
+      providerName: "claude",
+      displayName: "Claude (Anthropic)",
+      baseUrl: "https://api.anthropic.com/v1",
+      apiKey: process.env.ANTHROPIC_API_KEY || "",
+      modelName: "claude-sonnet-4-5-20250929",
+      priority: 4,
+      isActive: false,
+      description: "Anthropic Claude API - 폴백용",
+    },
+  ];
+
+  for (const provider of aiProviders) {
+    await prisma.aiSetting.upsert({
+      where: { providerName: provider.providerName },
+      update: {
+        displayName: provider.displayName,
+        baseUrl: provider.baseUrl,
+        modelName: provider.modelName,
+        priority: provider.priority,
+        description: provider.description,
+      },
+      create: provider,
+    });
+  }
+
   console.log("Seed data created successfully!");
 }
 

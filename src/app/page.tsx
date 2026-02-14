@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  FileText, FileSpreadsheet, Upload, Package, Users, Building2, TrendingUp,
+  FileText, FileSpreadsheet, Upload, Package, Users, Building2, TrendingUp, Bot,
 } from "lucide-react";
 
 interface DashboardData {
@@ -20,15 +20,25 @@ interface DashboardData {
   monthlyStats: { month: string; simple: number; detailed: number }[];
 }
 
+interface AiDashboardData {
+  totalLogs: number;
+  todayLogs: number;
+  avgLatencyMs: number;
+  successRate: number;
+  inquiry: { total: number; pending: number; completed: number; review: number };
+}
+
 const TABLE_LABELS: Record<string, string> = {
   material: "원료", supply: "자재", process: "공정", customer: "고객사", productType: "제품유형",
 };
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [aiData, setAiData] = useState<AiDashboardData | null>(null);
 
   useEffect(() => {
     fetch("/api/dashboard").then(r => r.json()).then(setData);
+    fetch("/api/ai/dashboard").then(r => r.json()).then(setAiData).catch(() => {});
   }, []);
 
   if (!data) return <div className="p-8 text-center text-muted-foreground">로딩 중...</div>;
@@ -161,6 +171,41 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* AI 처리 현황 */}
+      {aiData && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Bot className="h-4 w-4" />AI 처리 현황
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+              <div className="text-center">
+                <p className="text-muted-foreground">오늘 처리</p>
+                <p className="text-xl font-bold">{aiData.todayLogs}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-muted-foreground">총 처리</p>
+                <p className="text-xl font-bold">{aiData.totalLogs}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-muted-foreground">성공률</p>
+                <p className="text-xl font-bold">{aiData.successRate}%</p>
+              </div>
+              <div className="text-center">
+                <p className="text-muted-foreground">대기 문의</p>
+                <p className="text-xl font-bold text-orange-600">{aiData.inquiry.pending}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-muted-foreground">검토 필요</p>
+                <p className="text-xl font-bold text-red-600">{aiData.inquiry.review}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Quotations + Recent Imports */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
