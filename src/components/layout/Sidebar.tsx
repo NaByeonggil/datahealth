@@ -62,6 +62,8 @@ const menuItems: MenuItem[] = [
     children: [
       { label: "제품유형", href: "/master/product-type", icon: <Tags className="h-4 w-4" /> },
       { label: "가공비", href: "/master/processing-cost", icon: <DollarSign className="h-4 w-4" /> },
+      { label: "임가공비 단가", href: "/master/tolling-rate", icon: <DollarSign className="h-4 w-4" /> },
+      { label: "추가 공정비", href: "/master/tolling-extra", icon: <Cog className="h-4 w-4" /> },
       { label: "원료", href: "/master/material", icon: <FlaskConical className="h-4 w-4" /> },
       { label: "공급사", href: "/master/supplier", icon: <Truck className="h-4 w-4" /> },
       { label: "자재", href: "/master/supply", icon: <Box className="h-4 w-4" /> },

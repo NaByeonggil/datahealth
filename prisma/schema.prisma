@@ -12,6 +12,9 @@ model ProductType {
   id             String   @id @default(cuid())
   code           String   @unique
   name           String
+  formCode       String?  // TABLET, POWDER_STICK, LIQUID_STICK, JELLY_STICK, VIAL, SOFTCAPSULE ...
+  category       String?  // 고형 / 액상 / 젤리 / 용기형 / 융복합
+  defaultMoq     Int?     // 제형 기본 MOQ
   processingCost Float    @default(0)
   sortOrder      Int      @default(0)
   isActive       Boolean  @default(true)
@@ -21,6 +24,8 @@ model ProductType {
 
   simpleQuotations SimpleQuotation[]
   processingCosts  ProcessingCost[]
+  tollingRates     TollingRate[]
+  tollingExtras    TollingExtra[]
 }
 
 // 가공비 이력
@@ -42,6 +47,7 @@ model Supplier {
   id        String   @id @default(cuid())
   code      String   @unique
   name      String
+  category  String   @default("material") // material(원료) | tolling(임가공) | packaging(용기/자재)
   contact   String?
   manager   String?
   address   String?
@@ -50,7 +56,10 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  materials Material[]
+  materials     Material[]
+  supplies      Supply[]
+  tollingRates  TollingRate[]
+  tollingExtras TollingExtra[]
 }
 
 // 원료
@@ -257,6 +266,20 @@ model Supply {
   unit          String   @default("개")
   unitPrice     Float    @default(0)
   specification String?
+
+  supplierId    String?
+  supplier      Supplier? @relation(fields: [supplierId], references: [id])
+  capacity      Float?    // 용량 (20, 30, 110 ...)
+  capacityUnit  String?   // ml, g
+  color         String?   // 갈색, 유광 금색
+  printed       String?   // 인쇄유무
+  origin        String?   // 미국, 프랑스
+  vialType      String?   // Flip-Top, TE
+  boxQty        Int?      // 박스 입수
+  moq           Int?
+  effectiveDate DateTime?
+  sourceFile    String?   // 근거 파일명
+
   note          String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -277,6 +300,82 @@ model Process {
   updatedAt     DateTime @updatedAt
 
   detailedItems DetailedProcessItem[]
+}
+
+// 임가공 단가 — "업체 x 제형 x 규격구간 x 수량구간" 복합 조건으로 관리한다
+model TollingRate {
+  id             String   @id @default(cuid())
+
+  vendorId       String?
+  vendor         Supplier? @relation(fields: [vendorId], references: [id])
+  vendorName     String                    // 업체명 (마스터 미등록 업체 대비 텍스트 보관)
+
+  productTypeId  String?
+  productType    ProductType? @relation(fields: [productTypeId], references: [id])
+  formName       String                    // 유형/제형 이름 (액상스틱, 20ml 바이알 ...)
+  formCode       String?
+
+  specLabel      String?                   // "10~15g", "250ml까지", "155mg"
+  specMin        Float?
+  specMax        Float?
+  specUnit       String?                   // g, ml, mg
+
+  qtyMin         Int      @default(0)      // 수량 구간 시작
+  qtyMax         Int?                      // null 이면 이상(제한 없음)
+
+  unitCost       Float    @default(0)      // 임가공 단가
+  costBasis      String   @default("per_unit") // per_unit | per_case | per_bottle | per_tablet
+  supplyMode     String   @default("bulk")     // bulk(벌크) | semi(반제품) | finished(완제품)
+
+  vendorPrice    Float?                    // 납품가 (동물용 연질캅셀 40원)
+  ownMargin      Float?                    // 자사 마진 (회사 10원)
+
+  includesProfit Boolean  @default(false)
+  includesVat    Boolean  @default(false)
+  isNegotiable   Boolean  @default(false)  // NEGO 가능 / 협의필요
+  isConfidential Boolean  @default(false)  // 대외비
+
+  effectiveDate  DateTime @default(now())  // 단가 기준일
+  endDate        DateTime?
+  isCurrent      Boolean  @default(true)
+  sourceFile     String?                   // 근거 파일명
+  note           String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([formName, qtyMin])
+  @@index([vendorName])
+}
+
+// 추가 공정비 — 추출/코팅/과립/정제포장/완포장 등 기본 가공비 외 비용
+model TollingExtra {
+  id            String   @id @default(cuid())
+  code          String?
+  name          String
+
+  vendorId      String?
+  vendor        Supplier? @relation(fields: [vendorId], references: [id])
+  vendorName    String?
+
+  productTypeId String?
+  productType   ProductType? @relation(fields: [productTypeId], references: [id])
+  formName      String?
+
+  calcType      String   @default("per_unit") // per_unit(개당) | per_lot(건당) | percent(정률)
+  amount        Float    @default(0)
+  percentBase   String?                        // percent 일 때 기준 (cost_subtotal 등)
+
+  isOptional    Boolean  @default(true)
+  condition     String?                        // "PVC 별도청구", "30만T 미만 물류비" 등
+
+  effectiveDate DateTime @default(now())
+  isCurrent     Boolean  @default(true)
+  sourceFile    String?
+  note          String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // 임포트 매핑 템플릿
