@@ -74,7 +74,8 @@ model Material {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  priceHistory MaterialPrice[]
+  priceHistory  MaterialPrice[]
+  detailedItems DetailedMaterialItem[]
 }
 
 // 원료 가격 이력
@@ -136,6 +137,8 @@ model DetailedQuotation {
   quotationNo     String   @unique
   productName     String
   customerName    String?
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id])
 
   productType     String
   formType        String?
@@ -143,26 +146,38 @@ model DetailedQuotation {
   packageUnit     Int      @default(0)
   intakeGuide     String?
 
-  productionQty   Int      @default(0)
-  unitWeight      Float    @default(0)
-  totalWeight     Float    @default(0)
-  yieldRate       Float    @default(100)
-  actualQty       Int      @default(0)
+  // 제조 정보
+  productionQty   Int      @default(0)   // 제조단위(총 생산 개수)
+  unitWeight      Float    @default(0)   // 단위중량 CASE(g) = 내용량 x 포장단위
+  totalWeight     Float    @default(0)   // 총중량(kg) = 내용량 x 제조단위 x 로스율 / 1000
+  lossRate        Float    @default(1.1) // 총중량 산출 로스율 배수
+  yieldRate       Float    @default(100) // 수율(%)
+  theoreticalQty  Int      @default(0)   // 이론수량(case) = 제조단위 / 포장단위
+  caseQty         Int      @default(0)   // 실제수량(case) - 1 case 원가 환산의 분모
   packagingMethod String?
 
-  inspectionCost  Float    @default(0)
-  managementCost  Float    @default(0)
-  deliveryCost    Float    @default(0)
-  designCost      Float    @default(0)
-  onetimeCost     Float    @default(0)
+  profitRate      Float    @default(5)   // 기업이윤(%)
+  vatRate         Float    @default(10)  // 부가세율(%)
+  finalUnitPrice  Float    @default(0)   // 확정 납품단가(VAT 포함, 수동 올림값)
 
-  profitRate      Float    @default(5)
+  // 계산 스냅샷 - 저장 시점의 금액을 고정해 소급 변경을 막는다
+  materialCost    Float    @default(0)   // 원료비 총액
+  supplyCost      Float    @default(0)   // 자재비 총액
+  processCost     Float    @default(0)   // 직접제조비 총액
+  overheadCost    Float    @default(0)   // 간접제조비 총액
+  costSubtotal    Float    @default(0)   // 1 case 원가
+  profitAmount    Float    @default(0)   // 1 case 기업이윤
+  unitPriceExVat  Float    @default(0)   // 1 case 합계(VAT 별도)
+  totalAmount     Float    @default(0)   // 총 납품 예상가(VAT 포함)
 
+  status          String   @default("draft") // draft, confirmed, closed
+  validUntil      DateTime?
   note            String?
 
   materials       DetailedMaterialItem[]
   supplies        DetailedSupplyItem[]
   processes       DetailedProcessItem[]
+  overheads       DetailedOverheadItem[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -175,6 +190,8 @@ model DetailedMaterialItem {
   quotation       DetailedQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
   sortOrder       Int
+  materialId      String?
+  material        Material? @relation(fields: [materialId], references: [id])
   materialName    String
   specification   String?
   mixRatio        Float    @default(0)
@@ -193,6 +210,8 @@ model DetailedSupplyItem {
   quotation       DetailedQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
   sortOrder       Int
+  supplyId        String?
+  supply          Supply? @relation(fields: [supplyId], references: [id])
   supplyName      String
   specification   String?
   quantity        Int      @default(0)
@@ -209,10 +228,24 @@ model DetailedProcessItem {
   quotation       DetailedQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
   sortOrder       Int
+  processId       String?
+  process         Process? @relation(fields: [processId], references: [id])
   processName     String
   quantity        Int      @default(0)
   unitCost        Float    @default(0)
   totalCost       Float    @default(0)
+  note            String?
+}
+
+// 상세견적서 간접제조비 항목 (검사비/관리비/운반비/디자인비/1회성비용 등 가변)
+model DetailedOverheadItem {
+  id              String   @id @default(cuid())
+  quotationId     String
+  quotation       DetailedQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  sortOrder       Int
+  name            String
+  amount          Float    @default(0)
   note            String?
 }
 
@@ -228,6 +261,8 @@ model Supply {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  detailedItems DetailedSupplyItem[]
 }
 
 // 공정 마스터
@@ -240,6 +275,8 @@ model Process {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  detailedItems DetailedProcessItem[]
 }
 
 // 임포트 매핑 템플릿
@@ -287,6 +324,8 @@ model Customer {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  detailedQuotations DetailedQuotation[]
 }
 
 // AI 프로바이더 설정

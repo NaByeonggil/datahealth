@@ -11,7 +11,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Search, Sheet } from "lucide-react";
 
 interface QuotationRow {
   id: string;
@@ -69,7 +69,7 @@ export default function AllQuotationList() {
           type: "detailed" as const,
           typeLabel: "상세",
           productType: (q.productType as string) || "",
-          totalAmount: 0,
+          totalAmount: (q.totalAmount as number) || 0,
           createdAt: q.createdAt as string,
         })
       );
@@ -130,12 +130,13 @@ export default function AllQuotationList() {
                 <TableHead>제품유형</TableHead>
                 <TableHead className="text-right">총금액</TableHead>
                 <TableHead>작성일</TableHead>
+                <TableHead className="w-56 text-center">양식</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     등록된 견적서가 없습니다.
                   </TableCell>
                 </TableRow>
@@ -165,6 +166,34 @@ export default function AllQuotationList() {
                     {q.totalAmount ? `${Math.round(q.totalAmount).toLocaleString()}원` : "-"}
                   </TableCell>
                   <TableCell>{new Date(q.createdAt).toLocaleDateString("ko-KR")}</TableCell>
+                  <TableCell className="text-center">
+                    {q.type === "detailed" && (
+                      <div className="flex gap-1 justify-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="엑셀 양식으로 보기"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/quotation/detailed/${q.id}?view=sheet`);
+                          }}
+                        >
+                          <Sheet className="h-4 w-4 mr-1" />엑셀양식
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="엑셀 양식2 (원본 시트 그대로)"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/quotation/detailed/${q.id}?view=sheet2`);
+                          }}
+                        >
+                          <Sheet className="h-4 w-4 mr-1" />엑셀양식2
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

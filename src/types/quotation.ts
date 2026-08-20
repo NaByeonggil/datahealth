@@ -62,11 +62,16 @@ export interface SimpleQuotationType {
 export interface DetailedMaterialItemType {
   id?: string;
   sortOrder: number;
+  materialId?: string | null;
   materialName: string;
   specification?: string | null;
+  /** 배합비율 (%) */
   mixRatio: number;
+  /** 1포당 함량 (mg) */
   contentMg: number;
+  /** 투입량 (kg) */
   inputKg: number;
+  /** kg 당 단가 */
   unitPrice: number;
   totalPrice: number;
   functionalContent?: string | null;
@@ -76,9 +81,12 @@ export interface DetailedMaterialItemType {
 export interface DetailedSupplyItemType {
   id?: string;
   sortOrder: number;
+  supplyId?: string | null;
   supplyName: string;
   specification?: string | null;
+  /** 함량(개) — 참고값, 금액 계산에 쓰지 않는다 */
   quantity: number;
+  /** 투입량(개) */
   inputQty: number;
   unitPrice: number;
   totalPrice: number;
@@ -88,10 +96,20 @@ export interface DetailedSupplyItemType {
 export interface DetailedProcessItemType {
   id?: string;
   sortOrder: number;
+  processId?: string | null;
   processName: string;
+  /** 수량 (case) */
   quantity: number;
   unitCost: number;
   totalCost: number;
+  note?: string | null;
+}
+
+export interface DetailedOverheadItemType {
+  id?: string;
+  sortOrder: number;
+  name: string;
+  amount: number;
   note?: string | null;
 }
 
@@ -100,25 +118,47 @@ export interface DetailedQuotationType {
   quotationNo: string;
   productName: string;
   customerName?: string | null;
+  customerId?: string | null;
   productType: string;
   formType?: string | null;
   contentAmount?: number | null;
   packageUnit: number;
   intakeGuide?: string | null;
+
   productionQty: number;
-  unitWeight: number;
-  totalWeight: number;
+  unitWeight?: number;
+  totalWeight?: number;
+  lossRate?: number;
   yieldRate: number;
-  actualQty: number;
+  theoreticalQty?: number;
+  /** 실제수량(case) — 1 case 원가 환산의 분모 */
+  caseQty: number;
   packagingMethod?: string | null;
-  inspectionCost: number;
-  managementCost: number;
-  deliveryCost: number;
-  designCost: number;
-  onetimeCost: number;
+
   profitRate: number;
+  vatRate?: number;
+  /** 확정 납품단가(VAT 포함) */
+  finalUnitPrice?: number;
+
+  // 저장 시점 계산 스냅샷
+  materialCost?: number;
+  supplyCost?: number;
+  processCost?: number;
+  overheadCost?: number;
+  costSubtotal?: number;
+  profitAmount?: number;
+  unitPriceExVat?: number;
+  totalAmount?: number;
+
+  status?: string;
+  validUntil?: string | Date | null;
   note?: string | null;
+
   materials: DetailedMaterialItemType[];
   supplies: DetailedSupplyItemType[];
   processes: DetailedProcessItemType[];
+  overheads: DetailedOverheadItemType[];
+
+  createdAt?: string;
+  updatedAt?: string;
 }

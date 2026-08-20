@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Sheet } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface QuotationRow {
   id: string;
@@ -17,8 +18,19 @@ interface QuotationRow {
   productName: string;
   customerName: string | null;
   productType: string;
+  status: string;
+  caseQty: number;
+  finalUnitPrice: number;
+  totalAmount: number;
   createdAt: string;
 }
+
+const fmt = (n: number) => Math.round(n || 0).toLocaleString("ko-KR");
+const STATUS_LABEL: Record<string, string> = {
+  draft: "작성중",
+  confirmed: "확정",
+  closed: "종료",
+};
 
 export default function DetailedQuotationList() {
   const router = useRouter();
@@ -63,13 +75,18 @@ export default function DetailedQuotationList() {
                 <TableHead>제품명</TableHead>
                 <TableHead>고객사</TableHead>
                 <TableHead>제품유형</TableHead>
+                <TableHead className="text-right">수량(case)</TableHead>
+                <TableHead className="text-right">납품단가</TableHead>
+                <TableHead className="text-right">총액</TableHead>
+                <TableHead>상태</TableHead>
                 <TableHead>작성일</TableHead>
+                <TableHead className="w-56 text-center">양식</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     등록된 견적서가 없습니다.
                   </TableCell>
                 </TableRow>
@@ -80,7 +97,41 @@ export default function DetailedQuotationList() {
                   <TableCell className="font-medium">{q.productName}</TableCell>
                   <TableCell>{q.customerName || "-"}</TableCell>
                   <TableCell>{q.productType}</TableCell>
+                  <TableCell className="text-right">{fmt(q.caseQty)}</TableCell>
+                  <TableCell className="text-right">{fmt(q.finalUnitPrice)}원</TableCell>
+                  <TableCell className="text-right font-medium">{fmt(q.totalAmount)}원</TableCell>
+                  <TableCell>
+                    <Badge variant={q.status === "confirmed" ? "default" : "secondary"}>
+                      {STATUS_LABEL[q.status] || q.status}
+                    </Badge>
+                  </TableCell>
                   <TableCell>{new Date(q.createdAt).toLocaleDateString("ko-KR")}</TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex gap-1 justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        title="엑셀 양식으로 보기"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/quotation/detailed/${q.id}?view=sheet`);
+                        }}
+                      >
+                        <Sheet className="h-4 w-4 mr-1" />엑셀양식
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        title="엑셀 양식2 (원본 시트 그대로)"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/quotation/detailed/${q.id}?view=sheet2`);
+                        }}
+                      >
+                        <Sheet className="h-4 w-4 mr-1" />엑셀양식2
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

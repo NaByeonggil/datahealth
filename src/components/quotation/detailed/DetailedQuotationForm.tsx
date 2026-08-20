@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,96 +13,157 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Save, FileDown } from "lucide-react";
+import { Plus, Trash2, Save, FileDown, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useDetailedQuotationStore } from "@/store/detailedQuotationStore";
-import MaterialSearch from "@/components/quotation/MaterialSearch";
+import MasterSearch from "@/components/quotation/MasterSearch";
+import NumberInput from "./NumberInput";
 import { exportToExcel, exportToPDF } from "@/utils/exportDetailedQuotation";
+import {
+  calculateDetailedQuotation,
+  calcUnitWeight,
+  calcTotalWeight,
+} from "@/lib/quotation/calculateDetailed";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("ko-KR");
+const fmtDec = (n: number, digits = 2) =>
+  n.toLocaleString("ko-KR", { maximumFractionDigits: digits });
 
 const PRODUCT_TYPES = ["건강기능식품", "일반식품"];
-const SUPPLY_NAMES = ["스틱필름", "단케이스", "마감스티커", "카톤"];
 
-interface ProductType {
-  id: number;
-  code: string;
+interface ProductTypeOption {
+  id: string;
   name: string;
   isActive: boolean;
 }
 
-export default function DetailedQuotationForm() {
-  const s = useDetailedQuotationStore();
-  const [formTypes, setFormTypes] = useState<ProductType[]>([]);
-
-  useEffect(() => {
-    const fetchFormTypes = async () => {
-      try {
-        const res = await fetch("/api/product-types");
-        if (res.ok) {
-          const data = await res.json();
-          setFormTypes(data.filter((pt: ProductType) => pt.isActive));
-        }
-      } catch (error) {
-        console.error("제품유형(제형) 조회 실패:", error);
+/** 표 안에서 Enter / 위아래 화살표로 셀 이동. 좌우는 캐럿이 끝에 닿았을 때만 이동한다. */
+function gridKeyHandler(
+  section: string,
+  row: number,
+  col: string,
+  cols: string[],
+  rowCount: number
+) {
+  return (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const focus = (r: number, c: string) => {
+      const el = document.getElementById(`${section}-${r}-${c}`);
+      if (el) {
+        e.preventDefault();
+        el.focus();
       }
     };
-    fetchFormTypes();
+    const idx = cols.indexOf(col);
+    const input = e.currentTarget;
+    const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
+    const atEnd =
+      input.selectionStart === input.value.length &&
+      input.selectionEnd === input.value.length;
+
+    if (e.key === "Enter") {
+      if (idx < cols.length - 1) focus(row, cols[idx + 1]);
+      else if (row < rowCount - 1) focus(row + 1, cols[0]);
+    } else if (e.key === "ArrowUp" && row > 0) {
+      focus(row - 1, col);
+    } else if (e.key === "ArrowDown" && row < rowCount - 1) {
+      focus(row + 1, col);
+    } else if (e.key === "ArrowLeft" && atStart && idx > 0) {
+      focus(row, cols[idx - 1]);
+    } else if (e.key === "ArrowRight" && atEnd && idx < cols.length - 1) {
+      focus(row, cols[idx + 1]);
+    }
+  };
+}
+
+const MATERIAL_COLS = ["name", "contentMg", "mixRatio", "unitPrice", "func"];
+const SUPPLY_COLS = ["name", "spec", "quantity", "inputQty", "unitPrice", "note"];
+const PROCESS_COLS = ["name", "quantity", "unitCost", "note"];
+const OVERHEAD_COLS = ["name", "amount", "note"];
+
+export default function DetailedQuotationForm() {
+  const s = useDetailedQuotationStore();
+  const router = useRouter();
+  const [formTypes, setFormTypes] = useState<ProductTypeOption[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/product-types")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setFormTypes((data || []).filter((pt: ProductTypeOption) => pt.isActive)))
+      .catch(() => {});
   }, []);
 
-  // 내용량에서 숫자 추출 후 제조단위와 곱하고 1000으로 나눠서 총중량 계산
-  useEffect(() => {
-    const contentNum = parseFloat(String(s.contentAmount).replace(/[^0-9.]/g, "")) || 0;
-    if (contentNum > 0 && s.productionQty > 0) {
-      const calculatedWeight = (contentNum * s.productionQty) / 1000;
-      s.setField("totalWeight", calculatedWeight);
-    }
-  }, [s.contentAmount, s.productionQty]);
+  // 단위중량 / 총중량 / 이론수량 / 모든 소계는 계산 모듈 한 곳에서만 나온다
+  const t = useMemo(() => calculateDetailedQuotation(s), [s]);
+  const unitWeight = calcUnitWeight(s.contentAmount, s.packageUnit);
+  const totalWeight = calcTotalWeight(s.contentAmount, s.productionQty, s.lossRate);
 
-  const totalMaterialCost = useMemo(
-    () => s.materials.reduce((sum, m) => sum + m.totalPrice, 0), [s.materials]
-  );
-  const totalSupplyCost = useMemo(
-    () => s.supplies.reduce((sum, m) => sum + m.totalPrice, 0), [s.supplies]
-  );
-  const totalProcessCost = useMemo(
-    () => s.processes[0] ? s.processes[0].quantity * s.processes[0].unitCost : 0, [s.processes]
-  );
-  const totalIndirectCost =
-    s.inspectionCost + s.managementCost + s.deliveryCost + s.designCost;
-  const totalDirectCost = totalMaterialCost + totalSupplyCost + totalProcessCost;
-  const totalCost = totalDirectCost + totalIndirectCost;
-  const profitAmount = totalCost * (s.profitRate / 100);
-  const finalAmount = totalCost + profitAmount;
+  const materialRatioSum = s.materials.reduce((sum, m) => sum + m.mixRatio, 0);
+  const materialContentSum = s.materials.reduce((sum, m) => sum + m.contentMg, 0);
+  const materialInputSum = s.materials.reduce((sum, m) => sum + m.inputKg, 0);
 
   const handleSave = async () => {
-    if (!s.productName) { toast.error("제품명을 입력해주세요."); return; }
-    if (!s.productType) { toast.error("제품유형을 선택해주세요."); return; }
+    if (!s.productName.trim()) return toast.error("제품명을 입력해주세요.");
+    if (!s.productType) return toast.error("제품유형을 선택해주세요.");
+    if (t.caseQty <= 0)
+      return toast.error("실제수량(case)이 0입니다. 제조단위와 포장단위를 확인해주세요.");
+
+    setSaving(true);
     try {
-      const res = await fetch("/api/quotation/detailed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(s),
-      });
-      if (res.ok) toast.success("견적서가 저장되었습니다.");
-      else toast.error("저장에 실패했습니다.");
+      const res = await fetch(
+        s.id ? `/api/quotation/detailed/${s.id}` : "/api/quotation/detailed",
+        {
+          method: s.id ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(s),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "저장에 실패했습니다.");
+        return;
+      }
+      toast.success(s.id ? "견적서가 수정되었습니다." : `저장되었습니다. (${json.quotationNo})`);
+      router.push(`/quotation/detailed/${json.id}`);
     } catch {
       toast.error("저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
     }
   };
 
+  const exportPayload = { ...s, unitWeight, totalWeight };
+
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-6xl pb-6">
       {/* 기본 정보 */}
       <Card>
         <CardHeader><CardTitle>기본 정보</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div><Label>견적번호</Label>
-            <Input placeholder="자동생성" value={s.quotationNo} onChange={(e) => s.setField("quotationNo", e.target.value)} /></div>
-          <div><Label>제품명 *</Label>
-            <Input value={s.productName} onChange={(e) => s.setField("productName", e.target.value)} /></div>
-          <div><Label>고객사명</Label>
-            <Input value={s.customerName} onChange={(e) => s.setField("customerName", e.target.value)} /></div>
+        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <Label>견적번호</Label>
+            <Input placeholder="자동생성" value={s.quotationNo}
+              onChange={(e) => s.setField("quotationNo", e.target.value)} />
+          </div>
+          <div>
+            <Label>제품명 *</Label>
+            <Input value={s.productName} onChange={(e) => s.setField("productName", e.target.value)} />
+          </div>
+          <div>
+            <Label>고객사명</Label>
+            <Input value={s.customerName} onChange={(e) => s.setField("customerName", e.target.value)} />
+          </div>
+          <div>
+            <Label>상태</Label>
+            <Select value={s.status} onValueChange={(v) => s.setField("status", v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">작성중</SelectItem>
+                <SelectItem value="confirmed">확정</SelectItem>
+                <SelectItem value="closed">종료</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
@@ -109,26 +171,43 @@ export default function DetailedQuotationForm() {
       <Card>
         <CardHeader><CardTitle>제품 정보</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div><Label>제품유형 *</Label>
+          <div>
+            <Label>제품유형 *</Label>
             <Select value={s.productType} onValueChange={(v) => s.setField("productType", v)}>
               <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
               <SelectContent>
-                {PRODUCT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {PRODUCT_TYPES.map((t2) => <SelectItem key={t2} value={t2}>{t2}</SelectItem>)}
               </SelectContent>
-            </Select></div>
-          <div><Label>제형</Label>
+            </Select>
+          </div>
+          <div>
+            <Label>제형</Label>
             <Select value={s.formType} onValueChange={(v) => s.setField("formType", v)}>
               <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
               <SelectContent>
                 {formTypes.map((ft) => <SelectItem key={ft.id} value={ft.name}>{ft.name}</SelectItem>)}
               </SelectContent>
-            </Select></div>
-          <div><Label>내용량</Label>
-            <Input value={s.contentAmount || ""} onChange={(e) => s.setField("contentAmount", e.target.value)} /></div>
-          <div><Label>포장단위</Label>
-            <Input value={s.packageUnit || ""} onChange={(e) => s.setField("packageUnit", e.target.value)} /></div>
-          <div className="col-span-2 md:col-span-4"><Label>섭취량</Label>
-            <Input value={s.intakeGuide} onChange={(e) => s.setField("intakeGuide", e.target.value)} /></div>
+            </Select>
+          </div>
+          <div>
+            <Label>내용량 (g)</Label>
+            <NumberInput className="h-9" value={s.contentAmount}
+              onValueChange={(v) => s.setField("contentAmount", v)} />
+          </div>
+          <div>
+            <Label>포장단위 (개/case)</Label>
+            <NumberInput className="h-9" value={s.packageUnit}
+              onValueChange={(v) => s.setField("packageUnit", v)} />
+          </div>
+          <div className="col-span-2 md:col-span-3">
+            <Label>섭취량</Label>
+            <Input value={s.intakeGuide} onChange={(e) => s.setField("intakeGuide", e.target.value)} />
+          </div>
+          <div>
+            <Label>유효기간</Label>
+            <Input type="date" value={s.validUntil}
+              onChange={(e) => s.setField("validUntil", e.target.value)} />
+          </div>
         </CardContent>
       </Card>
 
@@ -136,164 +215,163 @@ export default function DetailedQuotationForm() {
       <Card>
         <CardHeader><CardTitle>제조 정보</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div><Label>제조단위 (개)</Label>
-            <Input type="number" value={s.productionQty || ""} onChange={(e) => s.setField("productionQty", Number(e.target.value))} /></div>
-          <div><Label>단위중량 (g)</Label>
-            <Input type="number" value={s.unitWeight || ""} onChange={(e) => s.setField("unitWeight", Number(e.target.value))} /></div>
-          <div><Label>총중량 (kg)</Label>
-            <Input type="number" className="bg-gray-50" readOnly value={s.totalWeight || ""} /></div>
-          <div><Label>수율 (%)</Label>
-            <Input type="number" value={s.yieldRate} onChange={(e) => s.setField("yieldRate", Number(e.target.value))} /></div>
-          <div><Label>실제수량</Label>
-            <Input type="number" value={s.actualQty || ""} onChange={(e) => s.setField("actualQty", Number(e.target.value))} /></div>
-          <div><Label>포장방법</Label>
-            <Input value={s.packagingMethod} onChange={(e) => s.setField("packagingMethod", e.target.value)} /></div>
+          <div>
+            <Label>제조단위 (개)</Label>
+            <NumberInput className="h-9" thousand value={s.productionQty}
+              onValueChange={(v) => s.setField("productionQty", v)} />
+          </div>
+          <div>
+            <Label>로스율 (배수)</Label>
+            <NumberInput className="h-9" value={s.lossRate}
+              onValueChange={(v) => s.setField("lossRate", v)} />
+            <p className="text-[11px] text-muted-foreground mt-1">총중량 = 내용량 × 제조단위 × 로스율</p>
+          </div>
+          <div>
+            <Label>단위중량 CASE (g)</Label>
+            <NumberInput className="h-9" readOnly value={unitWeight} />
+            <p className="text-[11px] text-muted-foreground mt-1">내용량 × 포장단위</p>
+          </div>
+          <div>
+            <Label>총중량 (kg)</Label>
+            <NumberInput className="h-9" readOnly decimals={3} value={totalWeight} />
+          </div>
+          <div>
+            <Label>수율 (%)</Label>
+            <NumberInput className="h-9" value={s.yieldRate}
+              onValueChange={(v) => s.setField("yieldRate", v)} />
+          </div>
+          <div>
+            <Label>이론수량 (case)</Label>
+            <NumberInput className="h-9" readOnly thousand value={t.theoreticalQty} />
+          </div>
+          <div>
+            <Label>실제수량 (case) *</Label>
+            <div className="flex gap-1">
+              <NumberInput className="h-9" thousand value={s.caseQty}
+                onValueChange={(v) => s.setField("caseQty", v)} />
+              <Button type="button" variant="outline" size="sm" className="h-9 shrink-0"
+                onClick={() => s.setField("caseQty", t.theoreticalQty)} title="이론수량 적용">
+                <Wand2 className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">1 case 원가 환산의 분모</p>
+          </div>
+          <div>
+            <Label>포장방법</Label>
+            <Input value={s.packagingMethod}
+              onChange={(e) => s.setField("packagingMethod", e.target.value)} />
+          </div>
         </CardContent>
       </Card>
 
       {/* 1. 원료비 */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>1. 원료비</CardTitle>
+          <div>
+            <CardTitle>1. 원료비 (성분 및 배합비율)</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              함량(mg)을 넣으면 배합비율 → 투입량 → 금액이 자동 계산됩니다.
+            </p>
+          </div>
           <Button variant="outline" size="sm" onClick={s.addMaterial}>
             <Plus className="h-4 w-4 mr-1" />행 추가
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">No.</TableHead>
-                <TableHead className="min-w-[200px]">원료명</TableHead>
-                <TableHead className="w-24">배합비(%)</TableHead>
+                <TableHead className="w-10">No.</TableHead>
+                <TableHead className="min-w-[180px]">원료명</TableHead>
                 <TableHead className="w-24">함량(mg)</TableHead>
+                <TableHead className="w-24">배합비율(%)</TableHead>
                 <TableHead className="w-24">투입량(kg)</TableHead>
-                <TableHead className="min-w-[120px]">단가(원)</TableHead>
-                <TableHead className="min-w-[120px]">총합계</TableHead>
-                <TableHead className="w-24">비고</TableHead>
-                <TableHead className="w-12"></TableHead>
+                <TableHead className="w-28">단가(원/kg)</TableHead>
+                <TableHead className="w-28">총합계</TableHead>
+                <TableHead className="w-28">기능성함량</TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {s.materials.length === 0 && (
-                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">
-                  행 추가 버튼을 눌러 원료를 추가하세요.</TableCell></TableRow>
-              )}
-              {s.materials.map((m, i) => (
-                <TableRow key={i}>
-                  <TableCell className="text-center">{i + 1}</TableCell>
-                  <TableCell>
-                    <MaterialSearch
-                      value={m.materialName}
-                      onManualChange={(name) => s.updateMaterial(i, "materialName", name)}
-                      onSelect={(mat) => {
-                        s.updateMaterial(i, "materialName", mat.name);
-                        s.updateMaterial(i, "unitPrice", mat.unitPrice);
-                        if (mat.origin) s.updateMaterial(i, "functionalContent", mat.origin);
-                      }}
-                    />
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
+                    행 추가 버튼을 눌러 원료를 추가하세요.
                   </TableCell>
-                  <TableCell><Input
-                    id={`mixRatio-${i}`}
-                    className="h-8 text-right"
-                    type="text"
-                    inputMode="decimal"
-                    value={m.mixRatio || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "" || /^[0-9]*\.?[0-9]*$/.test(val)) {
-                        s.updateMaterial(i, "mixRatio", val === "" ? 0 : val);
-                      }
-                    }}
-                    onBlur={(e) => s.updateMaterial(i, "mixRatio", Number(e.target.value) || 0)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); document.getElementById(`contentMg-${i}`)?.focus(); }
-                      else if (e.key === "ArrowUp" && i > 0) { e.preventDefault(); document.getElementById(`mixRatio-${i-1}`)?.focus(); }
-                      else if (e.key === "ArrowDown" && i < s.materials.length - 1) { e.preventDefault(); document.getElementById(`mixRatio-${i+1}`)?.focus(); }
-                      else if (e.key === "ArrowRight") { e.preventDefault(); document.getElementById(`contentMg-${i}`)?.focus(); }
-                    }}
-                  /></TableCell>
-                  <TableCell><Input
-                    id={`contentMg-${i}`}
-                    className="h-8 text-right"
-                    type="text"
-                    inputMode="decimal"
-                    value={m.contentMg || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "" || /^[0-9]*\.?[0-9]*$/.test(val)) {
-                        s.updateMaterial(i, "contentMg", val === "" ? 0 : val);
-                      }
-                    }}
-                    onBlur={(e) => s.updateMaterial(i, "contentMg", Number(e.target.value) || 0)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); document.getElementById(`inputKg-${i}`)?.focus(); }
-                      else if (e.key === "ArrowUp" && i > 0) { e.preventDefault(); document.getElementById(`contentMg-${i-1}`)?.focus(); }
-                      else if (e.key === "ArrowDown" && i < s.materials.length - 1) { e.preventDefault(); document.getElementById(`contentMg-${i+1}`)?.focus(); }
-                      else if (e.key === "ArrowLeft") { e.preventDefault(); document.getElementById(`mixRatio-${i}`)?.focus(); }
-                      else if (e.key === "ArrowRight") { e.preventDefault(); document.getElementById(`inputKg-${i}`)?.focus(); }
-                    }}
-                  /></TableCell>
-                  <TableCell><Input
-                    id={`inputKg-${i}`}
-                    className="h-8 text-right"
-                    type="text"
-                    inputMode="decimal"
-                    value={m.inputKg || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "" || /^[0-9]*\.?[0-9]*$/.test(val)) {
-                        s.updateMaterial(i, "inputKg", val === "" ? 0 : val);
-                      }
-                    }}
-                    onBlur={(e) => s.updateMaterial(i, "inputKg", Number(e.target.value) || 0)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); document.getElementById(`unitPrice-${i}`)?.focus(); }
-                      else if (e.key === "ArrowUp" && i > 0) { e.preventDefault(); document.getElementById(`inputKg-${i-1}`)?.focus(); }
-                      else if (e.key === "ArrowDown" && i < s.materials.length - 1) { e.preventDefault(); document.getElementById(`inputKg-${i+1}`)?.focus(); }
-                      else if (e.key === "ArrowLeft") { e.preventDefault(); document.getElementById(`contentMg-${i}`)?.focus(); }
-                      else if (e.key === "ArrowRight") { e.preventDefault(); document.getElementById(`unitPrice-${i}`)?.focus(); }
-                    }}
-                  /></TableCell>
-                  <TableCell><Input
-                    id={`unitPrice-${i}`}
-                    className="h-8 min-w-[100px] text-right"
-                    type="text"
-                    inputMode="numeric"
-                    value={m.unitPrice ? m.unitPrice.toLocaleString("ko-KR") : ""}
-                    onChange={(e) => {
-                      const num = Number(e.target.value.replace(/,/g, ""));
-                      if (!isNaN(num)) s.updateMaterial(i, "unitPrice", num);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); document.getElementById(`note-${i}`)?.focus(); }
-                      else if (e.key === "ArrowUp" && i > 0) { e.preventDefault(); document.getElementById(`unitPrice-${i-1}`)?.focus(); }
-                      else if (e.key === "ArrowDown" && i < s.materials.length - 1) { e.preventDefault(); document.getElementById(`unitPrice-${i+1}`)?.focus(); }
-                      else if (e.key === "ArrowLeft") { e.preventDefault(); document.getElementById(`inputKg-${i}`)?.focus(); }
-                      else if (e.key === "ArrowRight") { e.preventDefault(); document.getElementById(`note-${i}`)?.focus(); }
-                    }}
-                  /></TableCell>
-                  <TableCell><Input id={`totalPrice-${i}`} className="h-8 text-right bg-gray-50" readOnly value={m.totalPrice ? fmt(m.totalPrice) : ""} tabIndex={-1} /></TableCell>
-                  <TableCell><Input
-                    id={`note-${i}`}
-                    className="h-8"
-                    value={m.functionalContent || ""}
-                    onChange={(e) => s.updateMaterial(i, "functionalContent", e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); document.getElementById(`mixRatio-${i+1}`)?.focus(); }
-                      else if (e.key === "ArrowUp" && i > 0) { e.preventDefault(); document.getElementById(`note-${i-1}`)?.focus(); }
-                      else if (e.key === "ArrowDown" && i < s.materials.length - 1) { e.preventDefault(); document.getElementById(`note-${i+1}`)?.focus(); }
-                      else if (e.key === "ArrowLeft") { e.preventDefault(); document.getElementById(`unitPrice-${i}`)?.focus(); }
-                    }}
-                  /></TableCell>
-                  <TableCell><Button variant="ghost" size="sm" onClick={() => s.removeMaterial(i)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
                 </TableRow>
-              ))}
+              )}
+              {s.materials.map((m, i) => {
+                const key = (col: string) =>
+                  gridKeyHandler("mat", i, col, MATERIAL_COLS, s.materials.length);
+                return (
+                  <TableRow key={i}>
+                    <TableCell className="text-center">{i + 1}</TableCell>
+                    <TableCell>
+                      <MasterSearch
+                        inputId={`mat-${i}-name`}
+                        value={m.materialName}
+                        endpoint="/api/materials"
+                        placeholder="원료명 검색"
+                        onKeyDown={key("name")}
+                        onManualChange={(name) => {
+                          s.updateMaterial(i, "materialName", name);
+                          s.updateMaterial(i, "materialId", null);
+                        }}
+                        onSelect={(mat) => {
+                          s.updateMaterial(i, "materialId", mat.id);
+                          s.updateMaterial(i, "materialName", mat.name);
+                          s.updateMaterial(i, "unitPrice", mat.unitPrice ?? 0);
+                          if (mat.specification)
+                            s.updateMaterial(i, "specification", mat.specification);
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput id={`mat-${i}-contentMg`} value={m.contentMg} decimals={3}
+                        onValueChange={(v) => s.updateMaterial(i, "contentMg", v)}
+                        onKeyDown={key("contentMg")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput id={`mat-${i}-mixRatio`} value={m.mixRatio} decimals={4}
+                        onValueChange={(v) => s.updateMaterial(i, "mixRatio", v)}
+                        onKeyDown={key("mixRatio")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput value={m.inputKg} decimals={3} readOnly />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput id={`mat-${i}-unitPrice`} value={m.unitPrice} thousand
+                        onValueChange={(v) => s.updateMaterial(i, "unitPrice", v)}
+                        onKeyDown={key("unitPrice")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput value={m.totalPrice} thousand readOnly />
+                    </TableCell>
+                    <TableCell>
+                      <Input id={`mat-${i}-func`} className="h-8" value={m.functionalContent || ""}
+                        onChange={(e) => s.updateMaterial(i, "functionalContent", e.target.value)}
+                        onKeyDown={key("func")} />
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => s.removeMaterial(i)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {s.materials.length > 0 && (
-                <TableRow className="bg-gray-50 font-medium">
-                  <TableCell colSpan={6} className="text-right">원료비 소계</TableCell>
-                  <TableCell className="text-right">{fmt(totalMaterialCost)}원</TableCell>
-                  <TableCell colSpan={2}></TableCell>
+                <TableRow className="bg-muted/50 font-medium">
+                  <TableCell colSpan={2} className="text-right">합 계</TableCell>
+                  <TableCell className="text-right">{fmtDec(materialContentSum)}</TableCell>
+                  <TableCell className="text-right">{fmtDec(materialRatioSum, 4)}</TableCell>
+                  <TableCell className="text-right">{fmtDec(materialInputSum, 3)}</TableCell>
+                  <TableCell></TableCell>
+                  <TableCell className="text-right">{fmt(t.materialCost)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground text-xs">
+                    {fmtDec(t.materialPerCase)}원/case
+                  </TableCell>
+                  <TableCell></TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -304,56 +382,98 @@ export default function DetailedQuotationForm() {
       {/* 2. 자재비 */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>2. 자재비</CardTitle>
+          <div>
+            <CardTitle>2. 자재비</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">금액 = 투입량 × 단가 (함량은 참고값)</p>
+          </div>
           <Button variant="outline" size="sm" onClick={s.addSupply}>
             <Plus className="h-4 w-4 mr-1" />행 추가
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">No.</TableHead>
-                <TableHead>자재명</TableHead>
+                <TableHead className="w-10">No.</TableHead>
+                <TableHead className="min-w-[160px]">자재명</TableHead>
                 <TableHead className="w-24">규격</TableHead>
-                <TableHead className="w-24">수량</TableHead>
-                <TableHead className="w-24">투입량</TableHead>
+                <TableHead className="w-24">함량(개)</TableHead>
+                <TableHead className="w-24">투입량(개)</TableHead>
                 <TableHead className="w-28">단가(원)</TableHead>
                 <TableHead className="w-28">금액(원)</TableHead>
-                <TableHead className="w-12"></TableHead>
+                <TableHead className="w-28">비고</TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {s.supplies.map((m, i) => {
-                const isFixed = i < SUPPLY_NAMES.length;
+                const key = (col: string) =>
+                  gridKeyHandler("sup", i, col, SUPPLY_COLS, s.supplies.length);
                 return (
                   <TableRow key={i}>
                     <TableCell className="text-center">{i + 1}</TableCell>
                     <TableCell>
-                      {isFixed ? (
-                        <span className="font-medium">{SUPPLY_NAMES[i]}</span>
-                      ) : (
-                        <Input className="h-8" value={m.supplyName} onChange={(e) => s.updateSupply(i, "supplyName", e.target.value)} />
-                      )}
+                      <MasterSearch
+                        inputId={`sup-${i}-name`}
+                        value={m.supplyName}
+                        endpoint="/api/supplies"
+                        placeholder="자재명 검색"
+                        onKeyDown={key("name")}
+                        onManualChange={(name) => {
+                          s.updateSupply(i, "supplyName", name);
+                          s.updateSupply(i, "supplyId", null);
+                        }}
+                        onSelect={(item) => {
+                          s.updateSupply(i, "supplyId", item.id);
+                          s.updateSupply(i, "supplyName", item.name);
+                          s.updateSupply(i, "unitPrice", item.unitPrice ?? 0);
+                          if (item.specification)
+                            s.updateSupply(i, "specification", item.specification);
+                        }}
+                      />
                     </TableCell>
-                    <TableCell><Input className="h-8" value={m.specification || ""} onChange={(e) => s.updateSupply(i, "specification", e.target.value)} /></TableCell>
-                    <TableCell><Input className="h-8 text-right" type="number" value={m.quantity || ""} onChange={(e) => s.updateSupply(i, "quantity", Number(e.target.value))} /></TableCell>
-                    <TableCell><Input className="h-8 text-right" type="number" value={m.inputQty || ""} onChange={(e) => s.updateSupply(i, "inputQty", Number(e.target.value))} /></TableCell>
-                    <TableCell><Input className="h-8 text-right" type="number" value={m.unitPrice || ""} onChange={(e) => s.updateSupply(i, "unitPrice", Number(e.target.value))} /></TableCell>
-                    <TableCell><Input className="h-8 text-right bg-gray-50" readOnly value={m.totalPrice ? fmt(m.totalPrice) : ""} /></TableCell>
                     <TableCell>
-                      {!isFixed && (
-                        <Button variant="ghost" size="sm" onClick={() => s.removeSupply(i)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
+                      <Input id={`sup-${i}-spec`} className="h-8" value={m.specification || ""}
+                        onChange={(e) => s.updateSupply(i, "specification", e.target.value)}
+                        onKeyDown={key("spec")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput id={`sup-${i}-quantity`} value={m.quantity} thousand
+                        onValueChange={(v) => s.updateSupply(i, "quantity", v)}
+                        onKeyDown={key("quantity")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput id={`sup-${i}-inputQty`} value={m.inputQty} thousand
+                        onValueChange={(v) => s.updateSupply(i, "inputQty", v)}
+                        onKeyDown={key("inputQty")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput id={`sup-${i}-unitPrice`} value={m.unitPrice} thousand
+                        onValueChange={(v) => s.updateSupply(i, "unitPrice", v)}
+                        onKeyDown={key("unitPrice")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput value={m.totalPrice} thousand readOnly />
+                    </TableCell>
+                    <TableCell>
+                      <Input id={`sup-${i}-note`} className="h-8" value={m.note || ""}
+                        onChange={(e) => s.updateSupply(i, "note", e.target.value)}
+                        onKeyDown={key("note")} />
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => s.removeSupply(i)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
               })}
-              <TableRow className="bg-gray-50 font-medium">
-                <TableCell colSpan={6} className="text-right">자재비 소계</TableCell>
-                <TableCell className="text-right">{fmt(totalSupplyCost)}원</TableCell>
+              <TableRow className="bg-muted/50 font-medium">
+                <TableCell colSpan={6} className="text-right">소 계</TableCell>
+                <TableCell className="text-right">{fmt(t.supplyCost)}</TableCell>
+                <TableCell className="text-right text-muted-foreground text-xs">
+                  {fmtDec(t.supplyPerCase)}원/case
+                </TableCell>
                 <TableCell></TableCell>
               </TableRow>
             </TableBody>
@@ -361,66 +481,94 @@ export default function DetailedQuotationForm() {
         </CardContent>
       </Card>
 
-      {/* 3. 직접제조비 (공정비) */}
+      {/* 3. 직접제조비 */}
       <Card>
-        <CardHeader>
-          <CardTitle>3. 직접제조비 (공정비)</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>3. 직접제조비 (공정비)</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">총공정비 = 수량(case) × 공정단가</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={s.applyCaseQtyToProcesses}>
+              <Wand2 className="h-4 w-4 mr-1" />수량 일괄적용
+            </Button>
+            <Button variant="outline" size="sm" onClick={s.addProcess}>
+              <Plus className="h-4 w-4 mr-1" />행 추가
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-48">작업공정명</TableHead>
-                <TableHead className="w-32 text-center">수량(case)</TableHead>
-                <TableHead className="w-32 text-center bg-yellow-100">공정단가</TableHead>
-                <TableHead className="w-32 text-center">총 공정비</TableHead>
-                <TableHead>비고</TableHead>
+                <TableHead className="w-10">No.</TableHead>
+                <TableHead className="min-w-[180px]">작업공정명</TableHead>
+                <TableHead className="w-28">수량(case)</TableHead>
+                <TableHead className="w-28">공정단가</TableHead>
+                <TableHead className="w-32">총공정비</TableHead>
+                <TableHead className="w-32">비고</TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {["칭량", "혼합", "스틱충진", "선별", "포장"].map((name, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">{name}</TableCell>
-                  <TableCell className="text-center">
-                    {i === 2 && (
-                      <div className="flex items-center justify-center gap-1">
-                        <Input
-                          className="h-8 w-20 text-right"
-                          type="number"
-                          value={s.processes[0]?.quantity || ""}
-                          onChange={(e) => {
-                            const qty = Number(e.target.value);
-                            s.processes.forEach((_, idx) => s.updateProcess(idx, "quantity", qty));
-                          }}
-                        />
-                        <span className="text-sm">set</span>
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center bg-yellow-50">
-                    {i === 2 && (
-                      <Input
-                        className="h-8 w-24 text-right"
-                        type="number"
-                        value={s.processes[0]?.unitCost || ""}
-                        onChange={(e) => {
-                          const cost = Number(e.target.value);
-                          s.processes.forEach((_, idx) => s.updateProcess(idx, "unitCost", cost));
+              {s.processes.map((p, i) => {
+                const key = (col: string) =>
+                  gridKeyHandler("prc", i, col, PROCESS_COLS, s.processes.length);
+                return (
+                  <TableRow key={i}>
+                    <TableCell className="text-center">{i + 1}</TableCell>
+                    <TableCell>
+                      <MasterSearch
+                        inputId={`prc-${i}-name`}
+                        value={p.processName}
+                        endpoint="/api/processes"
+                        priceField="unitCost"
+                        placeholder="공정명 검색"
+                        onKeyDown={key("name")}
+                        onManualChange={(name) => {
+                          s.updateProcess(i, "processName", name);
+                          s.updateProcess(i, "processId", null);
+                        }}
+                        onSelect={(item) => {
+                          s.updateProcess(i, "processId", item.id);
+                          s.updateProcess(i, "processName", item.name);
+                          s.updateProcess(i, "unitCost", item.unitCost ?? 0);
+                          if (!p.quantity) s.updateProcess(i, "quantity", s.caseQty);
                         }}
                       />
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {i === 2 && s.processes[0] ? fmt(s.processes[0].quantity * s.processes[0].unitCost) : ""}
-                  </TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              ))}
-              <TableRow className="bg-gray-100 font-medium">
-                <TableCell className="text-center">소 계</TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell className="text-right">{s.processes[0] ? fmt(s.processes[0].quantity * s.processes[0].unitCost) : 0}원</TableCell>
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput id={`prc-${i}-quantity`} value={p.quantity} thousand
+                        onValueChange={(v) => s.updateProcess(i, "quantity", v)}
+                        onKeyDown={key("quantity")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput id={`prc-${i}-unitCost`} value={p.unitCost} thousand
+                        onValueChange={(v) => s.updateProcess(i, "unitCost", v)}
+                        onKeyDown={key("unitCost")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput value={p.totalCost} thousand readOnly />
+                    </TableCell>
+                    <TableCell>
+                      <Input id={`prc-${i}-note`} className="h-8" value={p.note || ""}
+                        onChange={(e) => s.updateProcess(i, "note", e.target.value)}
+                        onKeyDown={key("note")} />
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => s.removeProcess(i)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              <TableRow className="bg-muted/50 font-medium">
+                <TableCell colSpan={4} className="text-right">소 계</TableCell>
+                <TableCell className="text-right">{fmt(t.processCost)}</TableCell>
+                <TableCell className="text-right text-muted-foreground text-xs">
+                  {fmtDec(t.processPerCase)}원/case
+                </TableCell>
                 <TableCell></TableCell>
               </TableRow>
             </TableBody>
@@ -430,74 +578,151 @@ export default function DetailedQuotationForm() {
 
       {/* 4. 간접제조비 */}
       <Card>
-        <CardHeader><CardTitle>4. 간접제조비</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div><Label>검사비 (원)</Label>
-            <Input type="number" value={s.inspectionCost || ""} onChange={(e) => s.setField("inspectionCost", Number(e.target.value))} /></div>
-          <div><Label>관리비 (원)</Label>
-            <Input type="number" value={s.managementCost || ""} onChange={(e) => s.setField("managementCost", Number(e.target.value))} /></div>
-          <div><Label>운반비 (원)</Label>
-            <Input type="number" value={s.deliveryCost || ""} onChange={(e) => s.setField("deliveryCost", Number(e.target.value))} /></div>
-          <div><Label>디자인비용 (원)</Label>
-            <Input type="number" value={s.designCost || ""} onChange={(e) => s.setField("designCost", Number(e.target.value))} /></div>
-          <div className="flex items-end col-span-2">
-            <div className="p-3 bg-gray-50 rounded-md w-full text-center">
-              <p className="text-xs text-muted-foreground">간접제조비 소계</p>
-              <p className="font-bold">{fmt(totalIndirectCost)}원</p>
-            </div>
-          </div>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>4. 간접제조비</CardTitle>
+          <Button variant="outline" size="sm" onClick={s.addOverhead}>
+            <Plus className="h-4 w-4 mr-1" />행 추가
+          </Button>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">No.</TableHead>
+                <TableHead className="min-w-[180px]">내용</TableHead>
+                <TableHead className="w-32">금액(원)</TableHead>
+                <TableHead>비고</TableHead>
+                <TableHead className="w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {s.overheads.map((o, i) => {
+                const key = (col: string) =>
+                  gridKeyHandler("ovh", i, col, OVERHEAD_COLS, s.overheads.length);
+                return (
+                  <TableRow key={i}>
+                    <TableCell className="text-center">{i + 1}</TableCell>
+                    <TableCell>
+                      <Input id={`ovh-${i}-name`} className="h-8" value={o.name}
+                        onChange={(e) => s.updateOverhead(i, "name", e.target.value)}
+                        onKeyDown={key("name")} />
+                    </TableCell>
+                    <TableCell>
+                      <NumberInput id={`ovh-${i}-amount`} value={o.amount} thousand
+                        onValueChange={(v) => s.updateOverhead(i, "amount", v)}
+                        onKeyDown={key("amount")} />
+                    </TableCell>
+                    <TableCell>
+                      <Input id={`ovh-${i}-note`} className="h-8" value={o.note || ""}
+                        onChange={(e) => s.updateOverhead(i, "note", e.target.value)}
+                        onKeyDown={key("note")} />
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => s.removeOverhead(i)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              <TableRow className="bg-muted/50 font-medium">
+                <TableCell colSpan={2} className="text-right">소 계</TableCell>
+                <TableCell className="text-right">{fmt(t.overheadCost)}</TableCell>
+                <TableCell className="text-muted-foreground text-xs">
+                  {fmtDec(t.overheadPerCase)}원/case
+                </TableCell>
+                <TableCell></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
-      {/* 종합원가 산출 */}
+      {/* 종합원가 산출내역 */}
       <Card>
-        <CardHeader><CardTitle>종합원가 산출내역</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>종합원가 산출내역</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            모든 금액은 실제수량 {fmt(t.caseQty)} case 기준으로 환산됩니다.
+          </p>
+        </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="p-3 bg-gray-50 rounded-md text-center">
-              <p className="text-xs text-muted-foreground">1. 원료비</p>
-              <p className="font-bold">{fmt(totalMaterialCost)}원</p>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-md text-center">
-              <p className="text-xs text-muted-foreground">2. 자재비</p>
-              <p className="font-bold">{fmt(totalSupplyCost)}원</p>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-md text-center">
-              <p className="text-xs text-muted-foreground">3. 직접제조비</p>
-              <p className="font-bold">{fmt(totalProcessCost)}원</p>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-md text-center">
-              <p className="text-xs text-muted-foreground">4. 간접제조비</p>
-              <p className="font-bold">{fmt(totalIndirectCost)}원</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="p-3 bg-blue-50 rounded-md text-center">
-              <p className="text-xs text-muted-foreground">5. 소계</p>
-              <p className="font-bold text-blue-700">{fmt(totalCost)}원</p>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-md text-center">
-              <p className="text-xs text-muted-foreground">6. 기업이윤</p>
-              <div className="flex items-center justify-center gap-1">
-                <Input className="w-16 h-7 text-right text-sm" type="number" value={s.profitRate}
-                  onChange={(e) => s.setField("profitRate", Number(e.target.value))} />
-                <span className="text-xs">%</span>
-              </div>
-              <p className="font-bold">{fmt(profitAmount)}원</p>
-            </div>
-            <div className="p-3 bg-green-50 rounded-md text-center">
-              <p className="text-xs text-muted-foreground">7. 합계 (VAT별도)</p>
-              <p className="font-bold text-green-700">{fmt(finalAmount)}원</p>
-            </div>
-            <div className="p-3 bg-orange-50 rounded-md text-center">
-              <p className="text-xs text-muted-foreground">8. 1case 납품 예상가 (VAT별도)</p>
-              <p className="font-bold text-orange-700">{s.productionQty ? fmt(finalAmount / s.productionQty) : 0}원</p>
-            </div>
-            <div className="p-3 bg-primary/10 rounded-md text-center">
-              <p className="text-xs text-muted-foreground">9. 총납품 예상가 (VAT별도)</p>
-              <p className="font-bold text-primary">{fmt(finalAmount)}원</p>
-            </div>
-          </div>
+          <Table>
+            <TableBody>
+              {[
+                ["1. 원료비", t.materialPerCase, t.materialCost],
+                ["2. 자재비", t.supplyPerCase, t.supplyCost],
+                ["3. 직접제조비", t.processPerCase, t.processCost],
+                ["4. 간접제조비", t.overheadPerCase, t.overheadCost],
+              ].map(([label, perCase, total]) => (
+                <TableRow key={label as string}>
+                  <TableCell className="w-56">{label}</TableCell>
+                  <TableCell className="text-right w-40">{fmtDec(perCase as number)} 원/case</TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    총 {fmt(total as number)} 원
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow className="bg-muted/50 font-medium">
+                <TableCell>5. 소계 (원가)</TableCell>
+                <TableCell className="text-right">{fmtDec(t.costPerCase)} 원/case</TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  총 {fmt(t.totalCostAmount)} 원
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span>6. 기업이윤</span>
+                    <NumberInput className="w-20 h-8" value={s.profitRate}
+                      onValueChange={(v) => s.setField("profitRate", v)} />
+                    <span className="text-sm">%</span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">{fmtDec(t.profitPerCase)} 원/case</TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  총 {fmt(t.totalProfitAmount)} 원
+                </TableCell>
+              </TableRow>
+              <TableRow className="font-medium">
+                <TableCell>7. 합계 (VAT 별도)</TableCell>
+                <TableCell className="text-right">{fmtDec(t.pricePerCaseExVat)} 원/case</TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  총 {fmt(t.totalAmountExVat)} 원
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span>8. 1case 납품 예상가</span>
+                    <span className="text-xs text-muted-foreground">VAT</span>
+                    <NumberInput className="w-16 h-8" value={s.vatRate}
+                      onValueChange={(v) => s.setField("vatRate", v)} />
+                    <span className="text-sm">%</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2 justify-end">
+                    <NumberInput className="w-32 h-9 font-bold" thousand value={s.finalUnitPrice}
+                      placeholder={String(t.suggestedUnitPrice)}
+                      onValueChange={(v) => s.setField("finalUnitPrice", v)} />
+                    <Button type="button" variant="outline" size="sm" className="h-9"
+                      onClick={() => s.setField("finalUnitPrice", t.suggestedUnitPrice)}>
+                      제안가 {fmt(t.suggestedUnitPrice)}
+                    </Button>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground text-xs">
+                  이론가 {fmtDec(t.pricePerCaseIncVat)} 원 (VAT 포함)
+                </TableCell>
+              </TableRow>
+              <TableRow className="bg-primary/10 font-bold">
+                <TableCell>9. 총납품 예상가 (VAT 포함)</TableCell>
+                <TableCell className="text-right">{fmt(t.finalUnitPrice)} 원/case</TableCell>
+                <TableCell className="text-right text-primary">{fmt(t.totalAmount)} 원</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
@@ -505,37 +730,54 @@ export default function DetailedQuotationForm() {
       <Card>
         <CardHeader><CardTitle>비고</CardTitle></CardHeader>
         <CardContent>
-          <Textarea rows={3} value={s.note} onChange={(e) => s.setField("note", e.target.value)} placeholder="메모 사항을 입력하세요." />
+          <Textarea rows={3} value={s.note} onChange={(e) => s.setField("note", e.target.value)}
+            placeholder="메모 사항을 입력하세요." />
         </CardContent>
       </Card>
 
-      {/* 액션 */}
-      <div className="flex gap-3 justify-end">
-        <Button variant="outline" onClick={async () => {
-          try {
-            await exportToPDF(s);
-            toast.success("PDF가 다운로드되었습니다.");
-          } catch (error) {
-            console.error(error);
-            toast.error("PDF 내보내기에 실패했습니다.");
-          }
-        }}>
-          <FileDown className="h-4 w-4 mr-2" />PDF 내보내기
-        </Button>
-        <Button variant="outline" onClick={() => {
-          try {
-            exportToExcel(s);
-            toast.success("Excel 파일이 다운로드되었습니다.");
-          } catch (error) {
-            console.error(error);
-            toast.error("Excel 내보내기에 실패했습니다.");
-          }
-        }}>
-          <FileDown className="h-4 w-4 mr-2" />Excel 내보내기
-        </Button>
-        <Button onClick={handleSave}>
-          <Save className="h-4 w-4 mr-2" />저장
-        </Button>
+      {/* 하단 고정 요약 바 — 사이드바를 덮지 않도록 본문 폭 안에서 sticky 로 붙인다 */}
+      <div className="sticky bottom-0 z-40 border rounded-md shadow-lg bg-background/95 backdrop-blur">
+        <div className="px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <div className="text-sm">
+            <span className="text-muted-foreground">원가/case </span>
+            <span className="font-semibold">{fmtDec(t.costPerCase)}원</span>
+          </div>
+          <div className="text-sm">
+            <span className="text-muted-foreground">납품단가 </span>
+            <span className="font-semibold">{fmt(t.finalUnitPrice)}원</span>
+          </div>
+          <div className="text-sm">
+            <span className="text-muted-foreground">총액 </span>
+            <span className="font-bold text-primary">{fmt(t.totalAmount)}원</span>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <Button variant="outline" size="sm" onClick={async () => {
+              try {
+                await exportToPDF(exportPayload);
+                toast.success("PDF가 다운로드되었습니다.");
+              } catch (error) {
+                console.error(error);
+                toast.error("PDF 내보내기에 실패했습니다.");
+              }
+            }}>
+              <FileDown className="h-4 w-4 mr-1" />PDF
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => {
+              try {
+                exportToExcel(exportPayload);
+                toast.success("Excel 파일이 다운로드되었습니다.");
+              } catch (error) {
+                console.error(error);
+                toast.error("Excel 내보내기에 실패했습니다.");
+              }
+            }}>
+              <FileDown className="h-4 w-4 mr-1" />Excel
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Save className="h-4 w-4 mr-1" />{saving ? "저장 중..." : s.id ? "수정 저장" : "저장"}
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
