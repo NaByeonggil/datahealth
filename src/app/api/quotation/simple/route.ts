@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  buildHeaderData,
+  buildProductsCreate,
+  simpleQuotationInclude as include,
+} from "@/lib/quotation/simpleQuotationPayload";
 
 function generateQuotationNo() {
   const now = new Date();
@@ -29,7 +34,7 @@ export async function GET(request: NextRequest) {
   const [data, total] = await Promise.all([
     prisma.simpleQuotation.findMany({
       where,
-      include: { productType: true, items: true },
+      include,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
@@ -41,36 +46,31 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const quotationNo = body.quotationNo || generateQuotationNo();
+  try {
+    const body = await request.json();
+    if (!body.productName || !String(body.productName).trim()) {
+      return NextResponse.json({ error: "견적서 제목을 입력해주세요." }, { status: 400 });
+    }
+    const products = buildProductsCreate(body);
+    if (products.length === 0) {
+      return NextResponse.json({ error: "제품을 최소 1개 등록해주세요." }, { status: 400 });
+    }
 
-  const quotation = await prisma.simpleQuotation.create({
-    data: {
-      quotationNo,
-      productName: body.productName,
-      customerName: body.customerName || null,
-      productTypeId: body.productTypeId,
-      packageUnit: body.packageUnit || 0,
-      bottleBoxCost: body.bottleBoxCost || 0,
-      setCount: body.setCount || 1,
-      totalMaterialCost: body.totalMaterialCost || 0,
-      totalAmount: body.totalAmount || 0,
-      note: body.note || null,
-      items: {
-        create: (body.items || []).map((item: Record<string, unknown>, i: number) => ({
-          sortOrder: i + 1,
-          category: item.category as string,
-          materialName: item.materialName as string,
-          theoryAmount: (item.theoryAmount as number) || 0,
-          actualAmount: (item.actualAmount as number) || 0,
-          kgUnitPrice: (item.kgUnitPrice as number) || 0,
-          materialCost: (item.materialCost as number) || 0,
-          origin: (item.origin as string) || null,
-        })),
+    const quotation = await prisma.simpleQuotation.create({
+      data: {
+        quotationNo: body.quotationNo || generateQuotationNo(),
+        ...buildHeaderData(body),
+        products: { create: products },
       },
-    },
-    include: { items: true, productType: true },
-  });
+      include,
+    });
 
-  return NextResponse.json(quotation, { status: 201 });
+    return NextResponse.json(quotation, { status: 201 });
+  } catch (error) {
+    if ((error as { code?: string }).code === "P2002") {
+      return NextResponse.json({ error: "이미 쓰고 있는 견적번호입니다." }, { status: 400 });
+    }
+    console.error("일반견적서 저장 실패:", error);
+    return NextResponse.json({ error: "저장 중 오류가 발생했습니다." }, { status: 500 });
+  }
 }

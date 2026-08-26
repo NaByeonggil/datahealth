@@ -13,11 +13,16 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Save, FileDown, Wand2 } from "lucide-react";
+import { Plus, Trash2, Save, FileDown, Wand2, Search, PackageSearch } from "lucide-react";
 import { toast } from "sonner";
 import { useDetailedQuotationStore } from "@/store/detailedQuotationStore";
 import MasterSearch from "@/components/quotation/MasterSearch";
 import NumberInput from "./NumberInput";
+import TollingLookupDialog, {
+  TollingRateRow,
+  TollingExtraRow,
+} from "./TollingLookupDialog";
+import PackagingSetDialog, { PackagingSetRow } from "./PackagingSetDialog";
 import { exportToExcel, exportToPDF } from "@/utils/exportDetailedQuotation";
 import {
   calculateDetailedQuotation,
@@ -85,6 +90,8 @@ export default function DetailedQuotationForm() {
   const router = useRouter();
   const [formTypes, setFormTypes] = useState<ProductTypeOption[]>([]);
   const [saving, setSaving] = useState(false);
+  const [tollingOpen, setTollingOpen] = useState(false);
+  const [packagingOpen, setPackagingOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/product-types")
@@ -130,6 +137,78 @@ export default function DetailedQuotationForm() {
     } finally {
       setSaving(false);
     }
+  };
+
+  /**
+   * 임가공비 조회 결과를 직접제조비/간접제조비 행으로 채운다.
+   * 단가 기준(costBasis)에 따라 수량 단위가 다르다 — case당이면 실제수량, 개/병/정당이면 제조단위.
+   */
+  const qtyForBasis = (basis: string) =>
+    basis === "per_case" ? t.caseQty : s.productionQty || t.caseQty;
+
+  const applyTollingRate = (rate: TollingRateRow, extras: TollingExtraRow[]) => {
+    const qty = qtyForBasis(rate.costBasis);
+    const basisLabel =
+      { per_unit: "개", per_case: "case", per_bottle: "병", per_tablet: "정" }[rate.costBasis] || "개";
+
+    s.addProcess();
+    const idx = useDetailedQuotationStore.getState().processes.length - 1;
+    s.updateProcess(idx, "processName", `${rate.vendorName} ${rate.formName}`);
+    s.updateProcess(idx, "quantity", qty);
+    s.updateProcess(idx, "unitCost", rate.unitCost);
+    s.updateProcess(
+      idx,
+      "note",
+      `${fmt(rate.unitCost)}원/${basisLabel} · ${rate.sourceFile || "임가공비 마스터"} · ${new Date(
+        rate.effectiveDate
+      ).toLocaleDateString("ko-KR")} 기준${rate.includesProfit ? " · 이윤포함" : ""}`
+    );
+
+    extras.forEach((e) => {
+      if (e.calcType === "per_unit") {
+        s.addProcess();
+        const i = useDetailedQuotationStore.getState().processes.length - 1;
+        s.updateProcess(i, "processName", e.name);
+        s.updateProcess(i, "quantity", qtyForBasis("per_unit"));
+        s.updateProcess(i, "unitCost", e.amount);
+        s.updateProcess(i, "note", e.condition || "추가 공정비");
+      } else if (e.calcType === "per_lot") {
+        s.addOverhead();
+        const i = useDetailedQuotationStore.getState().overheads.length - 1;
+        s.updateOverhead(i, "name", e.name);
+        s.updateOverhead(i, "amount", e.amount);
+        s.updateOverhead(i, "note", e.condition || "일회성 비용");
+      } else {
+        // 정률(%) — 조회 시점의 원가 소계에 적용해 금액으로 환산한다
+        const amount = Math.round((t.totalCostAmount * e.amount) / 100);
+        s.addOverhead();
+        const i = useDetailedQuotationStore.getState().overheads.length - 1;
+        s.updateOverhead(i, "name", `${e.name} (${e.amount}%)`);
+        s.updateOverhead(i, "amount", amount);
+        s.updateOverhead(i, "note", "원가 소계 기준 정률 — 원가 변경 시 재계산 필요");
+      }
+    });
+
+    toast.success(`${rate.vendorName} ${fmt(rate.unitCost)}원 단가를 적용했습니다.`);
+  };
+
+  /** 부자재 세트를 자재비 행으로 채운다 (투입량은 완제품 개수 기준) */
+  const applyPackagingSet = (set: PackagingSetRow) => {
+    const qty = s.productionQty || t.caseQty;
+    set.items.forEach((item) => {
+      s.addSupply();
+      const i = useDetailedQuotationStore.getState().supplies.length - 1;
+      s.updateSupply(i, "supplyName", item.name);
+      s.updateSupply(i, "specification", item.spec || "");
+      s.updateSupply(i, "inputQty", Math.round(qty * (item.qtyPerUnit || 1)));
+      s.updateSupply(i, "unitPrice", item.isFreeIssue ? 0 : item.unitPrice);
+      s.updateSupply(
+        i,
+        "note",
+        item.isFreeIssue ? "사급(고객 제공)" : `${set.name} · ${set.sourceFile || ""}`.trim()
+      );
+    });
+    toast.success(`${set.name} (${set.items.length}개 자재)를 불러왔습니다.`);
   };
 
   const exportPayload = { ...s, unitWeight, totalWeight };
@@ -386,9 +465,14 @@ export default function DetailedQuotationForm() {
             <CardTitle>2. 자재비</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">금액 = 투입량 × 단가 (함량은 참고값)</p>
           </div>
-          <Button variant="outline" size="sm" onClick={s.addSupply}>
-            <Plus className="h-4 w-4 mr-1" />행 추가
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPackagingOpen(true)}>
+              <PackageSearch className="h-4 w-4 mr-1" />부자재 세트
+            </Button>
+            <Button variant="outline" size="sm" onClick={s.addSupply}>
+              <Plus className="h-4 w-4 mr-1" />행 추가
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
@@ -489,6 +573,9 @@ export default function DetailedQuotationForm() {
             <p className="text-xs text-muted-foreground mt-1">총공정비 = 수량(case) × 공정단가</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setTollingOpen(true)}>
+              <Search className="h-4 w-4 mr-1" />가공비 조회
+            </Button>
             <Button variant="outline" size="sm" onClick={s.applyCaseQtyToProcesses}>
               <Wand2 className="h-4 w-4 mr-1" />수량 일괄적용
             </Button>
@@ -734,6 +821,21 @@ export default function DetailedQuotationForm() {
             placeholder="메모 사항을 입력하세요." />
         </CardContent>
       </Card>
+
+      <TollingLookupDialog
+        open={tollingOpen}
+        onOpenChange={setTollingOpen}
+        defaultFormName={s.formType || s.productType}
+        defaultQuantity={s.productionQty || t.caseQty}
+        defaultSpecValue={s.contentAmount || undefined}
+        onApply={applyTollingRate}
+      />
+      <PackagingSetDialog
+        open={packagingOpen}
+        onOpenChange={setPackagingOpen}
+        defaultSearch={s.formType || ""}
+        onApply={applyPackagingSet}
+      />
 
       {/* 하단 고정 요약 바 — 사이드바를 덮지 않도록 본문 폭 안에서 sticky 로 붙인다 */}
       <div className="sticky bottom-0 z-40 border rounded-md shadow-lg bg-background/95 backdrop-blur">

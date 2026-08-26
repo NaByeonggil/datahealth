@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
       specification: body.specification || null,
       unit: body.unit || "kg", unitPrice: body.unitPrice || 0,
       minOrderQty: body.minOrderQty || null,
+      packingUnit: body.packingUnit ?? null,
       isFunctional: body.isFunctional || false,
       certifications: body.certifications || null,
       note: body.note || null, updatedBy: body.updatedBy || "관리자",

@@ -12,6 +12,7 @@ import { ArrowLeft, Pencil, Trash2, FileDown, Printer, LayoutGrid, Sheet } from 
 import { toast } from "sonner";
 import { DetailedQuotationType } from "@/types/quotation";
 import { calculateDetailedQuotation } from "@/lib/quotation/calculateDetailed";
+import ConfirmDialog from "@/components/common/ConfirmDialog";
 import { exportToExcel, exportToPDF } from "@/utils/exportDetailedQuotation";
 import QuotationSheetView from "@/components/quotation/detailed/QuotationSheetView";
 import QuotationSheetView2 from "@/components/quotation/detailed/QuotationSheetView2";
@@ -31,6 +32,7 @@ export default function DetailedQuotationDetail() {
   const router = useRouter();
   const [data, setData] = useState<DetailedQuotationType | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [view, setView] = useState<"normal" | "sheet" | "sheet2">("normal");
 
   // ?view=sheet | sheet2 로 들어오면 해당 엑셀 양식으로 연다 (목록에서 바로 진입)
@@ -119,11 +121,23 @@ export default function DetailedQuotationDetail() {
             onClick={() => router.push(`/quotation/detailed/${id}/edit`)}>
             <Pencil className="h-4 w-4 mr-1" />수정
           </Button>
-          <Button variant="outline" size="sm" disabled={deleting} onClick={handleDelete}>
+          <Button variant="outline" size="sm" disabled={deleting}
+            onClick={() => setConfirmDelete(true)}>
             <Trash2 className="h-4 w-4 mr-1 text-destructive" />삭제
           </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="견적서를 삭제할까요?"
+        description={`${data.quotationNo} · ${data.productName}\n원료·부자재·공정 내역까지 모두 지워지며 되돌릴 수 없습니다.`}
+        confirmLabel="삭제"
+        destructive
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
 
       {view === "sheet" ? (
         <QuotationSheetView data={data} />

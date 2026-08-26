@@ -17,13 +17,14 @@ import {
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Search, Columns3, ChevronsLeftRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { toast } from "sonner";
+import MaterialCatalogTable from "@/components/master/MaterialCatalogTable";
 
 interface Supplier { id: string; code: string; name: string; }
 interface Material {
   id: string; code: string; name: string; category: string; unit: string;
   unitPrice: number; supplierId: string; isActive: boolean;
   origin: string | null; specification: string | null;
-  minOrderQty: number | null; isFunctional: boolean;
+  minOrderQty: number | null; packingUnit: number | null; isFunctional: boolean;
   certifications: string | null; note: string | null;
   updatedBy: string | null;
   createdAt: string; updatedAt: string;
@@ -43,6 +44,7 @@ export default function MaterialPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
+  const [tab, setTab] = useState<"material" | "catalog">("material");
 
   useEffect(() => {
     fetch("/api/suppliers?all=true").then(r => r.json()).then((res) =>
@@ -67,7 +69,7 @@ export default function MaterialPage() {
   const openCreate = () => {
     setForm({
       code: "", name: "", category: "일반식품", unit: "kg", unitPrice: 0,
-      supplierId: "", origin: "", specification: "", minOrderQty: "",
+      supplierId: "", origin: "", specification: "", minOrderQty: "", packingUnit: "",
       isFunctional: false, certifications: "", note: "", updatedBy: "관리자", isActive: true,
     });
     setEditItem(null);
@@ -75,7 +77,7 @@ export default function MaterialPage() {
   };
 
   const openEdit = (item: Material) => {
-    setForm({ ...item, minOrderQty: item.minOrderQty ?? "" });
+    setForm({ ...item, minOrderQty: item.minOrderQty ?? "", packingUnit: item.packingUnit ?? "" });
     setEditItem(item);
     setDialogOpen(true);
   };
@@ -87,6 +89,7 @@ export default function MaterialPage() {
     const payload = {
       ...form,
       minOrderQty: form.minOrderQty ? Number(form.minOrderQty) : null,
+      packingUnit: form.packingUnit ? Number(form.packingUnit) : null,
       unitPrice: Number(form.unitPrice) || 0,
     };
     const method = editItem ? "PUT" : "POST";
@@ -112,7 +115,7 @@ export default function MaterialPage() {
   };
 
   const fmt = (n: number) => n.toLocaleString("ko-KR");
-  const colSpanCount = (expanded ? 16 : 9) + 1; // +1 for row number
+  const colSpanCount = (expanded ? 17 : 9) + 1; // +1 for row number
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const currentPage = Math.min(Math.max(1, page), totalPages);
@@ -121,15 +124,35 @@ export default function MaterialPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">원료 관리</h2>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setExpanded(!expanded)}>
-            {expanded ? <Columns3 className="h-4 w-4 mr-1" /> : <ChevronsLeftRight className="h-4 w-4 mr-1" />}
-            {expanded ? "기본 보기" : "확장 보기"}
-          </Button>
-          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />새로 등록</Button>
-        </div>
+        {tab === "material" && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setExpanded(!expanded)}>
+              {expanded ? <Columns3 className="h-4 w-4 mr-1" /> : <ChevronsLeftRight className="h-4 w-4 mr-1" />}
+              {expanded ? "기본 보기" : "확장 보기"}
+            </Button>
+            <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />새로 등록</Button>
+          </div>
+        )}
       </div>
 
+      <div className="flex gap-1 border-b">
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            tab === "material" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => setTab("material")}
+        >원료 (단가 보유)</button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            tab === "catalog" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => setTab("catalog")}
+        >취급품목 (단가 미확보)</button>
+      </div>
+
+      {tab === "catalog" && <MaterialCatalogTable suppliers={suppliers} />}
+
+      {tab === "material" && (<>
       <div className="flex gap-2 items-center">
         <Label className="text-sm whitespace-nowrap">공급사:</Label>
         <Select value={filterSupplier || "all"} onValueChange={(v) => { setFilterSupplier(v === "all" ? "" : v); setPage(1); }}>
@@ -164,6 +187,7 @@ export default function MaterialPage() {
                   <>
                     <TableHead>규격</TableHead>
                     <TableHead className="text-right">최소주문량</TableHead>
+                    <TableHead className="text-right">포장단위</TableHead>
                     <TableHead>기능성</TableHead>
                     <TableHead>인증</TableHead>
                     <TableHead>비고</TableHead>
@@ -197,6 +221,7 @@ export default function MaterialPage() {
                     <>
                       <TableCell className="max-w-[200px] truncate" title={m.specification || ""}>{m.specification || "-"}</TableCell>
                       <TableCell className="text-right">{m.minOrderQty != null ? fmt(m.minOrderQty) : "-"}</TableCell>
+                      <TableCell className="text-right">{m.packingUnit != null ? `${fmt(m.packingUnit)}${m.unit || ""}` : "-"}</TableCell>
                       <TableCell>
                         {m.isFunctional ? <Badge variant="default">Y</Badge> : <span className="text-muted-foreground">N</span>}
                       </TableCell>
@@ -250,6 +275,7 @@ export default function MaterialPage() {
           </div>
         </CardContent>
       </Card>
+      </>)}
 
       {/* 등록/수정 다이얼로그 - 전체 필드 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -307,6 +333,10 @@ export default function MaterialPage() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">최소주문량</Label>
               <div className="col-span-3"><Input type="number" value={String(form.minOrderQty || "")} onChange={e => setForm({ ...form, minOrderQty: e.target.value })} placeholder="미지정" /></div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">포장단위</Label>
+              <div className="col-span-3"><Input type="number" value={String(form.packingUnit || "")} onChange={e => setForm({ ...form, packingUnit: e.target.value })} placeholder={`예: 20 (20${form.unit || "kg"}/포)`} /></div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">기능성 여부</Label>

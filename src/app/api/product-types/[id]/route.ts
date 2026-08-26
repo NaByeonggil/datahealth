@@ -28,7 +28,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // 사용 중인 견적서 확인
-  const used = await prisma.simpleQuotation.count({ where: { productTypeId: id } });
+  const used = await prisma.simpleQuotationProduct.count({ where: { productTypeId: id } });
   if (used > 0) {
     return NextResponse.json({ error: "사용 중인 유형은 삭제할 수 없습니다." }, { status: 400 });
   }

@@ -2,6 +2,10 @@ export interface ProductTypeType {
   id: string;
   code: string;
   name: string;
+  /// 제형 코드 — TABLET, POWDER_STICK, VIAL … (일부 유형은 비어 있음)
+  formCode?: string | null;
+  /// 고형 / 액상 / 젤리 / 용기형 / 융복합
+  category?: string | null;
   processingCost: number;
   sortOrder: number;
   isActive: boolean;
@@ -35,6 +39,8 @@ export interface SimpleQuotationItemType {
   id?: string;
   sortOrder: number;
   category: string;
+  /** 주원료 / 부원료 */
+  role: string;
   materialName: string;
   theoryAmount: number;
   actualAmount: number;

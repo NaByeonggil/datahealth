@@ -19,7 +19,11 @@ export async function GET() {
   ] = await Promise.all([
     prisma.simpleQuotation.count(),
     prisma.detailedQuotation.count(),
-    prisma.simpleQuotation.findMany({ orderBy: { createdAt: "desc" }, take: 5, include: { productType: { select: { name: true } } } }),
+    prisma.simpleQuotation.findMany({
+      orderBy: { createdAt: "desc" }, take: 5,
+      // 제형은 제품에 붙는다. 첫 제품의 제형을 대표로 보여준다.
+      include: { products: { orderBy: { sortOrder: "asc" }, take: 1, include: { productType: { select: { name: true } } } } },
+    }),
     prisma.detailedQuotation.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
     prisma.importHistory.findMany({ orderBy: { createdAt: "desc" }, take: 5, include: { template: { select: { name: true } } } }),
     prisma.material.count({ where: { isActive: true } }),

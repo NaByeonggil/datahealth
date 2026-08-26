@@ -1,3 +1,16 @@
+/**
+ * 일반견적서 → 고객 발송용 견적서 PDF (인쇄 창)
+ *
+ * 사내 표준 견적서 양식(밀크씨슬 견적서)을 그대로 재현한다.
+ *   상단  제목 / 수신측 블록(좌) · 공급자 블록(우)
+ *   중단  제품사양 / 품목 표(단가·공급가액·세액)
+ *   하단  합계 / 특기사항 — 주원료·부원료 표기는 특기사항 본문에 포함되어 있다
+ *   하단  합계 / 특기사항
+ *
+ * 금액은 calculateSimple.ts 에서 나온 값을 그대로 받는다(재계산하지 않는다).
+ */
+import { DEFAULT_COMPANY_INFO, CompanyInfoType } from "@/lib/company/supplier";
+
 interface QuotationItem {
   category: string;
   materialName: string;
@@ -8,20 +21,49 @@ interface QuotationItem {
   origin?: string | null;
 }
 
+/** 계산된 포장 옵션 한 줄 */
+interface QuotationLine {
+  no: string;
+  displayLabel: string;
+  packageUnit: number;
+  setCount: number;
+  unit?: string | null;
+  packagingMethod?: string | null;
+  sellingUnitPrice: number;
+  supplyAmount: number;
+  vatAmount: number;
+  /** 어느 제품의 옵션인지 — 품목 칸에 찍는다 */
+  productName?: string;
+}
+
 interface QuotationData {
   quotationNo: string;
   productName: string;
   customerName: string;
-  packageUnit: number;
-  bottleBoxCost: number;
-  setCount: number;
-  processingCostPerUnit: number;
+  customerContact?: string;
+  customerPhone?: string;
+  customerFax?: string;
+  validDays?: number;
+  deliveryTerms?: string;
+  paymentTerms?: string;
+  foodType?: string;
+  /** 제품이 여러 개면 " / " 로 이어 붙인 값 */
+  productNames?: string;
+  productTypeNames?: string;
+  productSpecs?: string;
+  dosages?: string;
+  packagingMethods?: string;
   note: string;
-  items: QuotationItem[];
-  totalMaterialCost: number;
-  processingCost: number;
-  subtotal: number;
-  totalAmount: number;
+  lines: QuotationLine[];
+  supplyAmount: number;
+  vatAmount: number;
+  totalCost: number;
+  /** false = 옵션 택일이라 합계를 내지 않는다 */
+  sumOptions?: boolean;
+  /** 공급자(자사) 정보 — 없으면 기본값 */
+  company?: CompanyInfoType;
+  /** 견적 일자 — 없으면 오늘 */
+  quotationDate?: string;
 }
 
 function fmt(n: number): string {
@@ -29,101 +71,160 @@ function fmt(n: number): string {
 }
 
 function escapeHtml(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
+/** 값이 없으면 빈칸으로 둔다(양식상 손으로 채우는 칸이 많다) */
+const v = (s?: string | null) => escapeHtml(s || "");
+
 export function exportSimpleQuotationPdf(data: QuotationData) {
-  const itemRows = data.items
-    .map(
-      (item, i) => `
+  const today =
+    data.quotationDate || new Date().toISOString().slice(0, 10);
+  const co = data.company ?? DEFAULT_COMPANY_INFO;
+
+  const lines = data.lines ?? [];
+  const filler = Math.max(0, 7 - lines.length);
+  const itemRows =
+    lines
+      .map(
+        (ln) => `
     <tr>
-      <td class="c">${i + 1}</td>
-      <td class="c">${escapeHtml(item.category)}</td>
-      <td>${escapeHtml(item.materialName)}</td>
-      <td class="r">${item.theoryAmount}</td>
-      <td class="r">${item.actualAmount ? item.actualAmount.toFixed(4) : ""}</td>
-      <td class="r">${item.kgUnitPrice ? fmt(item.kgUnitPrice) : ""}</td>
-      <td class="r">${item.materialCost ? fmt(item.materialCost) : ""}</td>
-      <td class="c">${escapeHtml(item.origin || "")}</td>
+      <td class="c">${escapeHtml(ln.no)}</td>
+      <td>${v(ln.productName) || v(data.productName)}</td>
+      <td class="c sm">${v(ln.packagingMethod) || escapeHtml(ln.displayLabel)}</td>
+      <td class="r">${fmt(ln.setCount)}</td>
+      <td class="c">${v(ln.unit) || "박스"}</td>
+      <td class="r">${fmt(ln.sellingUnitPrice)}</td>
+      <td class="r">${fmt(ln.supplyAmount)}</td>
+      <td class="r">${fmt(ln.vatAmount)}</td>
+      <td class="sm"></td>
     </tr>`
-    )
-    .join("");
+      )
+      .join("") +
+    Array.from({ length: filler })
+      .map(
+        () =>
+          `<tr><td class="c">&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`
+      )
+      .join("");
 
   const html = `<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<title>견적서 - ${escapeHtml(data.productName)}</title>
+<html lang="ko"><head><meta charset="utf-8"><title>견적서 - ${v(data.productName)}</title>
 <style>
-  @page { size: A4; margin: 15mm; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; font-size: 11px; color: #000; }
-  h1 { text-align: center; font-size: 20px; margin-bottom: 18px; letter-spacing: 8px; }
-  h3 { font-size: 12px; margin: 14px 0 5px; border-bottom: 1px solid #333; padding-bottom: 2px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-  th, td { border: 1px solid #aaa; padding: 4px 6px; font-size: 10px; }
-  th { background: #e8e8e8; font-weight: bold; text-align: center; }
-  .label { background: #f5f5f5; font-weight: bold; width: 18%; }
-  .val { width: 32%; }
-  .r { text-align: right; }
-  .c { text-align: center; }
-  .highlight { background: #dceefb; }
-  .total-row td { font-weight: bold; font-size: 12px; }
-  .note { border: 1px solid #aaa; padding: 8px; white-space: pre-wrap; min-height: 30px; margin-top: 4px; }
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
-</style>
-</head><body>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic","맑은 고딕",AppleGothic,sans-serif; font-size: 11px; color:#000; margin:0; }
+  h1 { text-align:center; font-size:26px; letter-spacing:12px; margin:6px 0 16px; text-decoration:underline; }
+  table { border-collapse: collapse; width:100%; }
+  td, th { border:1px solid #000; padding:3px 5px; vertical-align:middle; }
+  .hd { background:#d9d9d9; font-weight:bold; text-align:center; white-space:nowrap; }
+  .c { text-align:center; } .r { text-align:right; } .sm { font-size:10px; }
+  .noborder, .noborder td { border:none; }
+  .vert { writing-mode: vertical-rl; text-align:center; letter-spacing:6px; font-weight:bold; width:22px; }
+  .lead { margin:6px 0 4px; font-size:11px; }
+  .sec { background:#d9d9d9; font-weight:bold; padding:4px 6px; border:1px solid #000; border-bottom:none; }
+  .box { border:1px solid #000; padding:8px 10px; white-space:pre-wrap; min-height:90px; font-size:11px; }
+  .top { display:flex; gap:6px; align-items:stretch; }
+  .top > div:first-child { width:41%; }
+  .top > div:last-child  { width:59%; }
+</style></head><body>
 
 <h1>견 적 서</h1>
 
+<div class="top">
+  <!-- 수신측 -->
+  <div>
+    <table>
+      <tr>
+        <td class="c" style="font-weight:bold">${v(data.customerName)}</td>
+        <td class="c" style="width:56px">귀하</td>
+      </tr>
+    </table>
+    <table style="border-top:none">
+      <tr><td class="hd" style="width:88px">견적 일자</td><td>${escapeHtml(today)}</td></tr>
+      <tr><td class="hd">수　　신</td><td>${v(data.customerContact)}</td></tr>
+      <tr><td class="hd">전　　화</td><td>${v(data.customerPhone)}</td></tr>
+      <tr><td class="hd">F A X</td><td>${v(data.customerFax)}</td></tr>
+      <tr><td class="hd">견적 번호</td><td>${v(data.quotationNo)}</td></tr>
+      <tr><td class="hd">유효 기간</td><td>견적일로부터 ${data.validDays ?? 30}일간</td></tr>
+      <tr><td class="hd">납기 일자</td><td>${v(data.deliveryTerms)}</td></tr>
+      <tr><td class="hd">결제 조건</td><td>${v(data.paymentTerms)}</td></tr>
+    </table>
+  </div>
+  <!-- 공급자 -->
+  <div>
+    <table style="height:100%">
+      <tr>
+        <td class="vert" rowspan="6">공급자</td>
+        <td class="hd" style="width:70px">상　　호</td><td>${escapeHtml(co.companyName)}</td>
+        <td class="hd" style="width:60px">대표자</td><td style="width:110px">${escapeHtml(co.ceo)}</td>
+      </tr>
+      <tr>
+        <td class="hd">사업자번호</td><td>${escapeHtml(co.bizNo)}</td>
+        <td class="hd">F A X</td><td>${escapeHtml(co.fax)}</td>
+      </tr>
+      <tr>
+        <td class="hd">담당자</td><td>${escapeHtml(co.manager)}</td>
+        <td class="hd">전　　화</td><td>${escapeHtml(co.tel)}</td>
+      </tr>
+      <tr><td class="hd">이메일</td><td colspan="3">${escapeHtml(co.email)}</td></tr>
+      <tr><td class="hd">주　　소</td><td colspan="3">${escapeHtml(co.address)}</td></tr>
+      <tr>
+        <td class="hd">업　　태</td><td>${escapeHtml(co.bizType)}</td>
+        <td class="hd">종　　목</td><td>${escapeHtml(co.bizItem)}</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<p class="lead">아래와 같이 견적합니다.</p>
+
 <table>
   <tr>
-    <td class="label">견적번호</td><td class="val">${escapeHtml(data.quotationNo || "-")}</td>
-    <td class="label">제품명</td><td class="val">${escapeHtml(data.productName)}</td>
+    <td class="hd" style="width:90px" rowspan="6">제품사양</td>
+    <td class="hd" style="width:80px">제품명</td><td>${v(data.productNames) || v(data.productName)}</td>
   </tr>
-  <tr>
-    <td class="label">고객사명</td><td class="val">${escapeHtml(data.customerName || "-")}</td>
-    <td class="label">포장단위</td><td class="val">${fmt(data.packageUnit)}</td>
-  </tr>
-  <tr>
-    <td class="label">병+박스 비용</td><td class="val">${fmt(data.bottleBoxCost)}원</td>
-    <td class="label">세트수</td><td class="val">${data.setCount}</td>
-  </tr>
+  <tr><td class="hd">제품유형</td><td>${v(data.foodType)}</td></tr>
+  <tr><td class="hd">제품제형</td><td>${v(data.productTypeNames)}</td></tr>
+  <tr><td class="hd">제품규격</td><td>${v(data.productSpecs)}</td></tr>
+  <tr><td class="hd">섭취방법</td><td>${v(data.dosages)}</td></tr>
+  <tr><td class="hd">포장방법</td><td>${v(data.packagingMethods)}</td></tr>
 </table>
 
-<h3>원료 목록</h3>
-<table>
+<table style="margin-top:10px">
   <tr>
-    <th style="width:5%">No</th>
-    <th style="width:9%">구분</th>
-    <th style="width:22%">원료명</th>
-    <th style="width:11%">이론량(mg)</th>
-    <th style="width:12%">실투여량(g)</th>
-    <th style="width:13%">Kg당단가(원)</th>
-    <th style="width:13%">원료비(원)</th>
-    <th style="width:10%">원산지</th>
+    <th class="hd" style="width:34px">No.</th>
+    <th class="hd">품목</th>
+    <th class="hd" style="width:86px">규격</th>
+    <th class="hd" style="width:54px">수량</th>
+    <th class="hd" style="width:44px">단위</th>
+    <th class="hd" style="width:66px">단가(원)</th>
+    <th class="hd" style="width:84px">공급가액</th>
+    <th class="hd" style="width:74px">세액</th>
+    <th class="hd" style="width:96px">주원료함량</th>
   </tr>
   ${itemRows}
+  ${data.sumOptions
+    ? `<tr>
+    <td class="hd" colspan="6">합　계</td>
+    <td class="r" style="font-weight:bold">${fmt(data.supplyAmount)}</td>
+    <td class="r" style="font-weight:bold">${fmt(data.vatAmount)}</td>
+    <td></td>
+  </tr>`
+    : `<tr>
+    <td class="hd" colspan="9" style="text-align:left;padding-left:8px">
+      ※ 위 포장 옵션 중 택일하여 발주하시면 됩니다.
+    </td>
+  </tr>`}
 </table>
 
-<h3>가격 계산</h3>
-<table>
-  <tr>
-    <td class="label">원료비 합계</td><td class="val r">${fmt(data.totalMaterialCost)}원</td>
-    <td class="label">가공비</td><td class="val r">${fmt(data.processingCost)}원</td>
-  </tr>
-  <tr>
-    <td class="label">병+박스</td><td class="val r">${fmt(data.bottleBoxCost)}원</td>
-    <td class="label">합계</td><td class="val r" style="font-weight:bold">${fmt(data.subtotal)}원</td>
-  </tr>
-  <tr class="total-row">
-    <td class="highlight" colspan="3">세트합계 (x${data.setCount})</td>
-    <td class="highlight r" style="font-size:13px">${fmt(data.totalAmount)}원</td>
-  </tr>
-</table>
-
-${data.note ? `<h3>비고</h3><div class="note">${escapeHtml(data.note)}</div>` : ""}
+<div style="margin-top:14px">
+  <div class="sec">특 기 사 항</div>
+  <div class="box">${escapeHtml(data.note || "")}</div>
+</div>
 
 <script>
   window.onafterprint = function() { window.close(); };

@@ -23,11 +23,11 @@ const DIR =
 
 type Row = (string | number)[];
 
-const report: { file: string; rates: number; extras: number; supplies: number; skipped: string[] }[] = [];
-let current = { file: "", rates: 0, extras: 0, supplies: 0, skipped: [] as string[] };
+const report: { file: string; rates: number; extras: number; supplies: number; sets: number; skipped: string[] }[] = [];
+let current = { file: "", rates: 0, extras: 0, supplies: 0, sets: 0, skipped: [] as string[] };
 
 const startFile = (file: string) => {
-  current = { file, rates: 0, extras: 0, supplies: 0, skipped: [] };
+  current = { file, rates: 0, extras: 0, supplies: 0, sets: 0, skipped: [] };
   report.push(current);
 };
 
@@ -59,6 +59,7 @@ async function resetSource(file: string) {
   await prisma.tollingRate.deleteMany({ where: { sourceFile: file } });
   await prisma.tollingExtra.deleteMany({ where: { sourceFile: file } });
   await prisma.supply.deleteMany({ where: { sourceFile: file } });
+  await prisma.packagingSet.deleteMany({ where: { sourceFile: file } });
 }
 
 const vendorCache = new Map<string, string>();
@@ -240,6 +241,61 @@ async function addSupply(s: {
     update: data,
   });
   current.supplies++;
+}
+
+type SetItemInput = {
+  name: string;
+  spec?: string;
+  unitPrice: number;
+  qtyPerUnit?: number;
+  isFreeIssue?: boolean;
+  note?: string;
+};
+
+/** 부자재 세트 등록 (용기+캡+라벨처럼 함께 묶여 다니는 자재 구성) */
+async function addPackagingSet(set: {
+  code: string;
+  name: string;
+  formName?: string;
+  capacity?: number;
+  capacityUnit?: string;
+  vendorName?: string;
+  effectiveDate: Date;
+  note?: string;
+  items: SetItemInput[];
+}) {
+  const data = {
+    name: set.name,
+    formName: set.formName || null,
+    capacity: set.capacity ?? null,
+    capacityUnit: set.capacityUnit || null,
+    vendorName: set.vendorName || null,
+    vendorId: set.vendorName ? await vendorId(set.vendorName, "packaging") : null,
+    effectiveDate: set.effectiveDate,
+    sourceFile: current.file,
+    note: set.note || null,
+  };
+  const items = set.items.map((i, idx) => ({
+    sortOrder: idx + 1,
+    name: i.name,
+    spec: i.spec || null,
+    unitPrice: i.unitPrice,
+    qtyPerUnit: i.qtyPerUnit ?? 1,
+    isFreeIssue: !!i.isFreeIssue,
+    note: i.note || null,
+  }));
+
+  const existing = await prisma.packagingSet.findUnique({ where: { code: set.code } });
+  if (existing) {
+    await prisma.packagingSetItem.deleteMany({ where: { setId: existing.id } });
+    await prisma.packagingSet.update({
+      where: { id: existing.id },
+      data: { ...data, items: { create: items } },
+    });
+  } else {
+    await prisma.packagingSet.create({ data: { code: set.code, ...data, items: { create: items } } });
+  }
+  current.sets++;
 }
 
 /** "10g ~ 15g", "250ml까지", "1L", "155mg" → 규격 범위 */
@@ -500,12 +556,32 @@ async function importPharmtech() {
   const vendor = "팜텍코리아";
 
   let section = "";
+  let setItems: SetItemInput[] = [];
+
+  const flushSet = async () => {
+    if (section && setItems.length > 1) {
+      await addPackagingSet({
+        code: `PTK-SET-${section.replace(/[^0-9A-Za-z가-힣]/g, "")}`.slice(0, 40),
+        name: `${section} 부자재 세트`,
+        formName: section,
+        capacity: num(section.match(/(\d+)ml/)?.[1]) || undefined,
+        capacityUnit: /ml/.test(section) ? "ml" : undefined,
+        vendorName: vendor,
+        effectiveDate: baseDate,
+        note: "라벨비 별도",
+        items: setItems,
+      });
+    }
+    setItems = [];
+  };
+
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const first = text(r[0]);
 
     const secMatch = first.match(/^\d+\.\s*(.+)$/);
     if (secMatch) {
+      await flushSet();
       section = secMatch[1].trim();
       // "5. 스틱/파우치 가공비 : 132원/포" 처럼 한 줄에 단가가 들어있는 경우
       const inline = section.match(/(.+?)\s*가공비\s*[:：]\s*([\d,]+)\s*원/);
@@ -544,6 +620,11 @@ async function importPharmtech() {
 
     if (unitPrice) {
       const code = `PTK-${section.replace(/[^0-9A-Za-z가-힣]/g, "")}-${first.replace(/[^0-9A-Za-z가-힣]/g, "")}`;
+      setItems.push({
+        name: first,
+        spec: [text(r[1]), text(r[2]) && `인쇄 ${text(r[2])}`].filter(Boolean).join(" / "),
+        unitPrice,
+      });
       await addSupply({
         code: code.slice(0, 40),
         name: first,
@@ -559,6 +640,7 @@ async function importPharmtech() {
       });
     }
   }
+  await flushSet();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -776,9 +858,11 @@ async function importFusionTxt() {
     // 부자재 상세: "(병 75원, 스크류캡 60원, ...)"
     const detail = block.match(/부자재\s*[:：]\s*[\d,]+원?\/?병?\s*\(([^)]+)\)/)?.[1];
     if (detail) {
+      const items: SetItemInput[] = [];
       for (const part of detail.split(",")) {
         const m = part.trim().match(/^(.+?)\s*([\d,]+)\s*원$/);
         if (!m) continue;
+        items.push({ name: m[1].trim(), unitPrice: num(m[2]) });
         await addSupply({
           code: `FUS-${capacity}-${m[1].replace(/\s/g, "")}`.slice(0, 40),
           name: m[1].trim(),
@@ -786,6 +870,30 @@ async function importFusionTxt() {
           specification: `융복합 액상 ${capacity}ml`,
           supplierName: vendor,
           effectiveDate: baseDate,
+        });
+      }
+      // 사급 자재는 금액 0 으로 세트에 남겨 구성만 보이게 한다
+      const freeIssue = block.match(/\(([^)]*사급[^)]*)\)/)?.[1];
+      if (freeIssue) {
+        freeIssue
+          .replace(/사급/g, "")
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .forEach((name) => items.push({ name, unitPrice: 0, isFreeIssue: true, note: "사급(고객 제공)" }));
+      }
+
+      if (items.length) {
+        await addPackagingSet({
+          code: `FUS-SET-${capacity}${isFinished ? "-FIN" : ""}`,
+          name: `융복합 액상 ${capacity}ml 부자재 세트${isFinished ? " (완포장)" : ""}`,
+          formName: `융복합 액상 ${capacity}ml`,
+          capacity,
+          capacityUnit: "ml",
+          vendorName: vendor,
+          effectiveDate: baseDate,
+          note: material ? `원본 표기 부자재 ${material}원/병` : undefined,
+          items,
         });
       }
     }
@@ -809,7 +917,7 @@ async function main() {
   console.log("─".repeat(78));
   for (const r of report) {
     console.log(
-      `  ${r.file.padEnd(46)} 단가 ${String(r.rates).padStart(3)} · 추가비 ${String(r.extras).padStart(3)} · 자재 ${String(r.supplies).padStart(3)}`
+      `  ${r.file.padEnd(46)} 단가 ${String(r.rates).padStart(3)} · 추가비 ${String(r.extras).padStart(3)} · 자재 ${String(r.supplies).padStart(3)} · 세트 ${String(r.sets).padStart(2)}`
     );
     r.skipped.forEach((s) => console.log(`      \x1b[33m건너뜀\x1b[0m ${s}`));
   }
@@ -861,16 +969,19 @@ async function main() {
     });
   }
 
-  const [rates, extras, supplies, types, vendors] = await Promise.all([
+  const [rates, extras, supplies, sets, types, vendors] = await Promise.all([
     prisma.tollingRate.count(),
     prisma.tollingExtra.count(),
     prisma.supply.count(),
+    prisma.packagingSet.count(),
     prisma.productType.count(),
     prisma.supplier.count(),
   ]);
   console.log("\n합계");
   console.log("─".repeat(78));
-  console.log(`  임가공 단가 ${rates}건 · 추가 공정비 ${extras}건 · 자재 ${supplies}건 · 제형 ${types}건 · 거래처 ${vendors}건\n`);
+  console.log(
+    `  임가공 단가 ${rates}건 · 추가 공정비 ${extras}건 · 자재 ${supplies}건 · 부자재 세트 ${sets}건 · 제형 ${types}건 · 거래처 ${vendors}건\n`
+  );
 }
 
 main()

@@ -22,10 +22,11 @@ model ProductType {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  simpleQuotations SimpleQuotation[]
+  simpleQuotationProducts SimpleQuotationProduct[]
   processingCosts  ProcessingCost[]
   tollingRates     TollingRate[]
   tollingExtras    TollingExtra[]
+  packagingSets    PackagingSet[]
 }
 
 // 가공비 이력
@@ -57,9 +58,11 @@ model Supplier {
   updatedAt DateTime @updatedAt
 
   materials     Material[]
+  catalogItems  MaterialCatalog[]
   supplies      Supply[]
   tollingRates  TollingRate[]
   tollingExtras TollingExtra[]
+  packagingSets PackagingSet[]
 }
 
 // 원료
@@ -75,6 +78,7 @@ model Material {
   unit          String   @default("kg")
   unitPrice     Float
   minOrderQty   Float?
+  packingUnit   Float?   // 포장단위 (예: 20 = 20kg/포)
   isFunctional  Boolean  @default(false)
   certifications String?
   note          String?
@@ -85,6 +89,7 @@ model Material {
 
   priceHistory  MaterialPrice[]
   detailedItems DetailedMaterialItem[]
+  catalogItems  MaterialCatalog[]
 }
 
 // 원료 가격 이력
@@ -99,6 +104,34 @@ model MaterialPrice {
   createdAt    DateTime @default(now())
 }
 
+// 공급사 취급품목 카탈로그 — 단가 없이 "취급 가능"만 관리
+// 단가가 확보되면 Material 로 승격하고 materialId 로 연결한다
+model MaterialCatalog {
+  id            String   @id @default(cuid())
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  name          String              // 품목명
+  category      String?             // 고시형 / 개별인정형 / 일반식품 / 생약원료 / 녹용제품 / 프로바이오틱스 ...
+  origin        String?
+  specification String?             // 함량·균수·규격
+  packingUnit   Float?
+  refCode       String?             // 고시번호(제2019-15호) 또는 브랜드명(Testofen)
+  note          String?
+  materialId    String?             // 단가 확보 후 승격된 Material
+  material      Material? @relation(fields: [materialId], references: [id])
+  sourceFile    String?             // 출처 파일명
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // 같은 품목이라도 규격(수용성/불용성, 카테킨 30%/70%)·식품유형·제조사가 다르면
+  // 별개의 취급품목이다. 자연키로 묶기에는 구분 축이 너무 많아 유니크 제약을 두지 않고,
+  // 재실행 시 임포터가 sourceFile 단위로 지우고 다시 넣어 멱등성을 확보한다.
+  @@index([supplierId])
+  @@index([sourceFile])
+  @@index([name])
+}
+
 // 일반견적서
 model SimpleQuotation {
   id              String   @id @default(cuid())
@@ -106,32 +139,92 @@ model SimpleQuotation {
   productName     String
   customerName    String?
 
-  productTypeId   String
-  productType     ProductType @relation(fields: [productTypeId], references: [id])
 
-  packageUnit     Int
-  bottleBoxCost   Float    @default(0)
-  setCount        Int      @default(1)
+
+  // ── 견적서 양식용 (고객 발송 PDF) ──────────────────────
+  /// 수신 담당자 (예: 김현우님)
+  customerContact String?
+  customerPhone   String?
+  customerFax     String?
+  /// 유효기간(일) — "견적일로부터 N일간"
+  validDays       Int     @default(30)
+  /// 납기 일자
+  deliveryTerms   String?
+  /// 결제 조건
+  paymentTerms    String?
+  /// 식품유형 — 건강기능식품 / 기타가공품 / 과채가공품 …
+  /// 특기사항 조건부 문구(분석비·신고비·심의비)가 이 값으로 갈린다.
+  foodType        String   @default("건강기능식품")
+  /// 포장 옵션을 모두 발주하는가.
+  /// false(기본) = 택일 — 30정/60정 중 고객이 고르는 경우라 합계가 의미 없다.
+  /// true         = 합산 — 옵션을 모두 생산하므로 전 옵션 합계를 낸다.
+  sumOptions      Boolean @default(false)
 
   totalMaterialCost Float  @default(0)
   totalAmount       Float  @default(0)
 
   note            String?
 
-  items           SimpleQuotationItem[]
+  products        SimpleQuotationProduct[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
 
 // 일반견적서 원료 항목
+// 포장 옵션 — 한 견적서에 30정/60정, 수량 구간 등을 여러 줄로 담는다.
+// 배합(SimpleQuotationItem)은 1정당 값이라 옵션과 무관하게 공유한다.
+// 견적서에 담기는 제품 — 정제·환제처럼 제형과 배합이 다른 제품을 한 장에 담는다.
+// 배합(items)과 포장옵션(lines)은 제품에 붙는다.
+model SimpleQuotationProduct {
+  id            String   @id @default(cuid())
+  quotationId   String
+  quotation     SimpleQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  sortOrder     Int      @default(1)
+  /// 품목 표에 찍히는 제품명 (예: 모두의모발정제)
+  name          String
+  productTypeId String
+  productType   ProductType @relation(fields: [productTypeId], references: [id])
+  /// 1정(1개)당 부원료비 — 제형마다 부형제가 달라 제품별로 둔다
+  subMaterialCostPerUnit Float @default(20)
+  /// 제품규격 (예: 1000mg정제)
+  productSpec   String?
+  /// 섭취방법 (예: 1일 3회 1정)
+  dosage        String?
+
+  items SimpleQuotationItem[]
+  lines SimpleQuotationLine[]
+
+  @@index([quotationId])
+}
+
+model SimpleQuotationLine {
+  id               String   @id @default(cuid())
+  productId        String
+  product          SimpleQuotationProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sortOrder        Int      @default(1)
+  /// 옵션 표시명 — 비우면 "30정" 처럼 자동 생성
+  label            String?
+  packageUnit      Int
+  bottleBoxCost    Float    @default(0)
+  setCount         Int      @default(1)
+  /// 포장방법 (예: 단상자*병*30정)
+  packagingMethod  String?
+  /// 수량 단위 (예: 박스, 20일분)
+  unit             String   @default("박스")
+
+  @@index([productId])
+}
+
 model SimpleQuotationItem {
   id                String   @id @default(cuid())
-  quotationId       String
-  quotation         SimpleQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId         String
+  product           SimpleQuotationProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   sortOrder         Int
   category          String
+  /// 주원료 / 부원료 — 특기사항의 원료 표기를 나눌 때 쓴다
+  role              String   @default("주원료")
   materialName      String
   theoryAmount      Float    @default(0)
   actualAmount      Float    @default(0)
@@ -286,6 +379,7 @@ model Supply {
   updatedAt     DateTime @updatedAt
 
   detailedItems DetailedSupplyItem[]
+  packagingItems PackagingSetItem[]
 }
 
 // 공정 마스터
@@ -378,6 +472,51 @@ model TollingExtra {
   updatedAt     DateTime @updatedAt
 }
 
+// 부자재 세트 — 용기/캡/라벨/필름처럼 함께 묶여 다니는 자재 구성
+model PackagingSet {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+
+  productTypeId String?
+  productType   ProductType? @relation(fields: [productTypeId], references: [id])
+  formName      String?
+
+  capacity      Float?
+  capacityUnit  String?
+
+  vendorId      String?
+  vendor        Supplier? @relation(fields: [vendorId], references: [id])
+  vendorName    String?
+
+  effectiveDate DateTime @default(now())
+  isCurrent     Boolean  @default(true)
+  sourceFile    String?
+  note          String?
+
+  items         PackagingSetItem[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 부자재 세트 구성 항목
+model PackagingSetItem {
+  id          String   @id @default(cuid())
+  setId       String
+  set         PackagingSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  sortOrder   Int      @default(1)
+  supplyId    String?
+  supply      Supply?  @relation(fields: [supplyId], references: [id])
+  name        String
+  spec        String?
+  unitPrice   Float    @default(0)
+  qtyPerUnit  Float    @default(1)   // 완제품 1개당 투입 수량
+  isFreeIssue Boolean  @default(false) // 사급(고객 제공) 여부 - 원가에서 제외
+  note        String?
+}
+
 // 임포트 매핑 템플릿
 model ImportTemplate {
   id            String   @id @default(cuid())
@@ -428,6 +567,39 @@ model Customer {
 }
 
 // AI 프로바이더 설정
+// 견적서 특기사항 기본 문구 — 모든 견적서에 공통으로 들어가는 안내
+// 신규 작성 시 isActive 인 항목이 sortOrder 순으로 자동 입력된다.
+model QuotationNoteTemplate {
+  id        String   @id @default(cuid())
+  /// 번호는 저장하지 않는다. 표시할 때 순서대로 붙인다.
+  content   String
+  /// 적용 대상 — ALL(항상) / HEALTH_FOOD(건강기능식품만) / NON_HEALTH_FOOD(그 외만)
+  appliesTo String   @default("ALL")
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+}
+
+// 자사(공급자) 정보 — 견적서에 찍히는 값. 항상 1행만 쓴다(id="default")
+model CompanyInfo {
+  id          String   @id @default("default")
+  companyName String   @default("")
+  ceo         String   @default("")
+  bizNo       String   @default("")
+  manager     String   @default("")
+  tel         String   @default("")
+  fax         String   @default("")
+  email       String   @default("")
+  address     String   @default("")
+  bizType     String   @default("")
+  bizItem     String   @default("")
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
 model AiSetting {
   id            String   @id @default(cuid())
   providerName  String   @unique // llama_5060ti, llama_780m, openai, claude
