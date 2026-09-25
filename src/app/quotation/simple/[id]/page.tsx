@@ -25,6 +25,8 @@ import { exportSimpleQuotationExcel } from "@/lib/exports/simpleQuotationExcel";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import DuplicateQuotationDialog, { DuplicateTarget } from "@/components/quotation/DuplicateQuotationDialog";
 import PriceDriftBanner from "@/components/quotation/PriceDriftBanner";
+import { useCurrentUser } from "@/lib/auth/useCurrentUser";
+import { canViewCost } from "@/lib/auth/roles";
 
 /** API 응답 — 화면 표시에 필요한 항목만 추린 형태 */
 interface Quotation extends SavedQuotation {
@@ -45,6 +47,9 @@ export default function SimpleQuotationDetail() {
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
   /** 삭제 확인 다이얼로그 */
+  /** 영업담당에게는 원가·단가를 가린다 (차단 자체는 proxy.ts) */
+  const me = useCurrentUser();
+  const showCost = canViewCost(me?.role ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   /** 복제 대상 — 수신처만 바꿔 다시 낼 때 */
   const [duplicateTarget, setDuplicateTarget] = useState<DuplicateTarget | null>(null);
@@ -170,7 +175,7 @@ export default function SimpleQuotationDetail() {
         </Button>
       </div>
 
-      <PriceDriftBanner type="simple" quotationId={String(id)} />
+      {showCost && <PriceDriftBanner type="simple" quotationId={String(id)} />}
 
       <DuplicateQuotationDialog
         target={duplicateTarget}
@@ -250,14 +255,14 @@ export default function SimpleQuotationDetail() {
                       <TableHead className="w-24">주/부원료</TableHead>
                       <TableHead>원료명</TableHead>
                       <TableHead className="w-28 text-right">이론량(mg)</TableHead>
-                      <TableHead className="w-28 text-right">Kg당단가(원)</TableHead>
-                      <TableHead className="w-24 text-right">원료비(원)</TableHead>
+                      {showCost && <TableHead className="w-28 text-right">Kg당단가(원)</TableHead>}
+                      {showCost && <TableHead className="w-24 text-right">원료비(원)</TableHead>}
                       <TableHead className="w-24">원산지</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(p.items ?? []).length === 0 && (
-                      <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">
+                      <TableRow><TableCell colSpan={showCost ? 8 : 6} className="text-center text-muted-foreground py-6">
                         원료가 없습니다.
                       </TableCell></TableRow>
                     )}
@@ -268,8 +273,8 @@ export default function SimpleQuotationDetail() {
                         <TableCell>{it.role || "주원료"}</TableCell>
                         <TableCell className="font-medium">{it.materialName}</TableCell>
                         <TableCell className="text-right">{it.theoryAmount}</TableCell>
-                        <TableCell className="text-right">{fmt(it.kgUnitPrice)}</TableCell>
-                        <TableCell className="text-right">{fmt(it.materialCost)}</TableCell>
+                        {showCost && <TableCell className="text-right">{fmt(it.kgUnitPrice)}</TableCell>}
+                        {showCost && <TableCell className="text-right">{fmt(it.materialCost)}</TableCell>}
                         <TableCell>{it.origin || "-"}</TableCell>
                       </TableRow>
                     ))}
@@ -277,7 +282,7 @@ export default function SimpleQuotationDetail() {
                 </Table>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {showCost && <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="text-center p-2 bg-gray-50 rounded-md">
                   <p className="text-xs text-muted-foreground">1정당 원료비</p>
                   <p className="font-bold">{fmt(pc?.materialCostPerUnit ?? 0)}원</p>
@@ -294,7 +299,7 @@ export default function SimpleQuotationDetail() {
                   <p className="text-xs text-muted-foreground">1정당 합계</p>
                   <p className="font-bold text-blue-700">{fmt(pc?.perUnitCost ?? 0)}원</p>
                 </div>
-              </div>
+              </div>}
 
               <div className="overflow-x-auto">
                 <p className="text-xs font-medium mb-2">포장 옵션</p>
@@ -359,11 +364,11 @@ export default function SimpleQuotationDetail() {
             ))}
           </div>
           {data.sumOptions ? (
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-3 bg-gray-50 rounded-md">
+            <div className={showCost ? "grid grid-cols-3 gap-4" : "grid grid-cols-2 gap-4"}>
+              {showCost && <div className="text-center p-3 bg-gray-50 rounded-md">
                 <p className="text-xs text-muted-foreground">총원가</p>
                 <p className="text-lg font-bold">{fmt(calc.totalCost)}원</p>
-              </div>
+              </div>}
               <div className="text-center p-3 bg-gray-50 rounded-md">
                 <p className="text-xs text-muted-foreground">세액 (10%)</p>
                 <p className="text-lg font-bold">{fmt(calc.vatAmount)}원</p>

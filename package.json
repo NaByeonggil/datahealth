@@ -14,7 +14,8 @@
     "restore": "bash scripts/restore.sh",
     "setup": "bash scripts/setup.sh",
     "verify:calc": "npx tsx scripts/verify-detailed-calc.ts",
-    "import:tolling": "npx tsx scripts/import-tolling.ts"
+    "import:tolling": "npx tsx scripts/import-tolling.ts",
+    "create-admin": "npx tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans-kr": "^5.2.9",

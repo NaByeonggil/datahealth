@@ -751,3 +751,45 @@ model AiChatMessage {
   createdAt   DateTime @default(now())
 }
 
+// ── 계정 · 권한 ──────────────────────────────────────────────
+//
+// 역할 세 가지로 나눈다. 원가·마진 열람 여부가 갈리는 지점이다.
+//   admin    전체 + 계정/권한 관리
+//   manager  전체 (원가·마진 열람 O), 계정 관리는 불가
+//   sales    견적서 작성·발송까지. 원가·마진·원료단가는 가려진다.
+//            (상세견적서는 원가계산서 자체라 접근할 수 없다)
+model User {
+  id           String   @id @default(cuid())
+  /// 로그인 아이디
+  username     String   @unique
+  /// scrypt 해시 — 평문은 어디에도 남기지 않는다
+  passwordHash String
+  name         String
+  role         String   @default("sales")
+  isActive     Boolean  @default(true)
+  /// 비밀번호를 관리자가 초기화하면 true. 다음 로그인에서 새로 정하게 한다.
+  mustChangePassword Boolean @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions Session[]
+
+  @@index([role])
+}
+
+// 로그인 세션 — 쿠키에 담기는 토큰의 실체.
+// DB에 두면 계정을 끄거나 비밀번호를 바꿀 때 기존 로그인을 즉시 끊을 수 있다.
+model Session {
+  id        String   @id @default(cuid())
+  /// 난수 32바이트 hex. 쿠키에는 이 값만 들어간다.
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}

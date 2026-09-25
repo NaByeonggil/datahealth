@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,18 @@ import {
 import {
   FileText, FileSpreadsheet, Upload, Package, Users, Building2, TrendingUp, Bot,
 } from "lucide-react";
+
+/** 권한 없는 곳으로 들어가려다 되돌려진 경우 이유를 알려준다 */
+function DeniedNotice() {
+  const denied = useSearchParams().get("denied");
+  if (!denied) return null;
+  return (
+    <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      <strong>{denied}</strong>에 접근할 권한이 없어 대시보드로 돌아왔습니다.
+      필요하면 관리자에게 권한을 요청해주세요.
+    </div>
+  );
+}
 
 interface DashboardData {
   counts: { simple: number; detailed: number; materials: number; suppliers: number; customers: number };
@@ -47,6 +60,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <Suspense fallback={null}><DeniedNotice /></Suspense>
+
       <div>
         <h2 className="text-2xl font-bold">대시보드</h2>
         <p className="text-muted-foreground mt-1">헬씨팜바이오 견적서 시스템 현황</p>

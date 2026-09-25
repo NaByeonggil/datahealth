@@ -32,14 +32,28 @@ import {
   BarChart3,
   Wrench,
   BookOpen,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  canViewCost, canEditMaster, canManageUsers, canAccessDetailedQuotation, ROLE_LABEL,
+} from "@/lib/auth/roles";
+import { toast } from "sonner";
 
 interface MenuItem {
   label: string;
   href?: string;
   icon: React.ReactNode;
   children?: MenuItem[];
+  /** 이 역할만 메뉴에 보인다. 비우면 전원. 차단 자체는 proxy.ts 가 한다. */
+  allow?: (role: string) => boolean;
+}
+
+export interface SidebarUser {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
 }
 
 const menuItems: MenuItem[] = [
@@ -52,13 +66,14 @@ const menuItems: MenuItem[] = [
     label: "견적서",
     icon: <FileText className="h-4 w-4" />,
     children: [
-      { label: "일반견적서", href: "/quotation/simple/new", icon: <FileText className="h-4 w-4" /> },
-      { label: "상세견적서", href: "/quotation/detailed/new", icon: <FileSpreadsheet className="h-4 w-4" /> },
+      { label: "일반견적서", href: "/quotation/simple/new", icon: <FileText className="h-4 w-4" />, allow: canViewCost },
+      { label: "상세견적서", href: "/quotation/detailed/new", icon: <FileSpreadsheet className="h-4 w-4" />, allow: canAccessDetailedQuotation },
       { label: "전체목록", href: "/quotation", icon: <FileText className="h-4 w-4" /> },
     ],
   },
   {
     label: "마스터관리",
+    allow: canEditMaster,
     icon: <Package className="h-4 w-4" />,
     children: [
       { label: "제품유형", href: "/master/product-type", icon: <Tags className="h-4 w-4" /> },
@@ -76,6 +91,7 @@ const menuItems: MenuItem[] = [
   },
   {
     label: "AI 어시스턴트",
+    allow: canViewCost,
     icon: <Bot className="h-4 w-4" />,
     children: [
       { label: "AI 견적 채팅", href: "/ai/chat", icon: <MessageSquare className="h-4 w-4" /> },
@@ -86,6 +102,7 @@ const menuItems: MenuItem[] = [
   },
   {
     label: "임포트센터",
+    allow: canEditMaster,
     icon: <Download className="h-4 w-4" />,
     children: [
       { label: "파일 임포트", href: "/import", icon: <Download className="h-4 w-4" /> },
@@ -95,6 +112,7 @@ const menuItems: MenuItem[] = [
   },
   {
     label: "설정",
+    allow: canManageUsers,
     icon: <Settings className="h-4 w-4" />,
     children: [
       { label: "사용자", href: "/settings/users", icon: <Users className="h-4 w-4" /> },
@@ -105,10 +123,28 @@ const menuItems: MenuItem[] = [
   },
 ];
 
-export default function Sidebar({ children }: { children: React.ReactNode }) {
+export default function Sidebar({ user, children }: { user: SidebarUser; children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [openSections, setOpenSections] = useState<string[]>(["견적서", "마스터관리"]);
+
+  /** 권한 없는 메뉴는 아예 보여주지 않는다 (실제 차단은 proxy.ts) */
+  const visibleMenu = menuItems
+    .filter((item) => !item.allow || item.allow(user.role))
+    .map((item) => ({
+      ...item,
+      children: item.children?.filter((c) => !c.allow || c.allow(user.role)),
+    }))
+    .filter((item) => item.href || (item.children && item.children.length > 0));
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login";
+    } catch {
+      toast.error("로그아웃에 실패했습니다.");
+    }
+  };
 
   const toggleSection = (label: string) => {
     setOpenSections((prev) =>
@@ -143,7 +179,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="p-2 space-y-1 overflow-y-auto h-[calc(100vh-3.5rem)]">
-          {menuItems.map((item) => (
+          {visibleMenu.map((item) => (
             <div key={item.label}>
               {item.href ? (
                 <Link
@@ -218,8 +254,21 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
             {pathname.startsWith("/import") && "임포트센터"}
             {pathname.startsWith("/settings") && "설정"}
           </h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">홍길동</span>
+          <div className="flex items-center gap-3">
+            <div className="text-right leading-tight">
+              <p className="text-sm font-medium">{user.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {ROLE_LABEL[user.role] ?? user.role} · {user.username}
+              </p>
+            </div>
+            <Link href="/change-password"
+              className="text-xs text-gray-600 hover:text-gray-900 underline underline-offset-2">
+              비밀번호 변경
+            </Link>
+            <button onClick={handleLogout}
+              className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-gray-700 hover:bg-gray-100">
+              <LogOut className="h-3.5 w-3.5" />로그아웃
+            </button>
           </div>
         </header>
         <div className="p-6">{children}</div>
