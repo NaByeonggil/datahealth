@@ -1,0 +1,11 @@
+.git
+node_modules
+.next
+.env*
+*.db
+*.db-*
+*.db.*
+data
+import-reports
+material-quotes
+vendor-catalog

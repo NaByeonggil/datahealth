@@ -1,0 +1,32 @@
+# 프로덕션 앱 — data.cancerwith.kr
+#   nh 스택의 nginx(nh_nginx)가 datahealth-app:3000 으로 프록시합니다.
+#   기동: docker compose up -d --build
+#
+# DB 는 호스트의 prisma/dev.db 를 그대로 씁니다(SQLite). 스키마 변경은
+# 호스트에서 npx prisma migrate deploy 로 적용한 뒤 컨테이너를 재시작하세요.
+services:
+  app:
+    build: .
+    image: datahealth-app
+    container_name: datahealth-app
+    restart: unless-stopped
+    # dev.db 와 저널 파일을 호스트 사용자(1000) 권한으로 읽고 씁니다.
+    user: "1000:1000"
+    expose:
+      - "3000"
+    # API 키 등은 .env 에서 받고, DB 경로만 컨테이너 기준으로 덮어씁니다.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: "file:/app/db/dev.db"
+    volumes:
+      - ./prisma:/app/db
+    networks:
+      - nh_network
+
+networks:
+  # nh 스택의 nginx 와 같은 네트워크에 올라타 프록시를 받습니다.
+  nh_network:
+    external: true
+    name: nh_nh_network
