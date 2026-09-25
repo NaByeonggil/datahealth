@@ -11,7 +11,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, FileDown, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, FileDown, Pencil, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { CompanyInfoType } from "@/lib/company/supplier";
 import {
@@ -23,6 +23,7 @@ import {
 import { exportSimpleQuotationPdf } from "@/lib/exports/simpleQuotationPdf";
 import { exportSimpleQuotationExcel } from "@/lib/exports/simpleQuotationExcel";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
+import DuplicateQuotationDialog, { DuplicateTarget } from "@/components/quotation/DuplicateQuotationDialog";
 
 /** API 응답 — 화면 표시에 필요한 항목만 추린 형태 */
 interface Quotation extends SavedQuotation {
@@ -44,6 +45,8 @@ export default function SimpleQuotationDetail() {
   const [savingNote, setSavingNote] = useState(false);
   /** 삭제 확인 다이얼로그 */
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /** 복제 대상 — 수신처만 바꿔 다시 낼 때 */
+  const [duplicateTarget, setDuplicateTarget] = useState<DuplicateTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
@@ -154,10 +157,22 @@ export default function SimpleQuotationDetail() {
           onClick={() => router.push(`/quotation/simple/${id}/edit`)}>
           <Pencil className="h-4 w-4 mr-1" />수정
         </Button>
+        <Button variant="outline" size="sm"
+          onClick={() => setDuplicateTarget({
+            id: String(id), type: "simple", quotationNo: data.quotationNo,
+            productName: data.productName, customerName: data.customerName,
+          })}>
+          <Copy className="h-4 w-4 mr-1" />복제
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setConfirmDelete(true)}>
           <Trash2 className="h-4 w-4 mr-1 text-destructive" />삭제
         </Button>
       </div>
+
+      <DuplicateQuotationDialog
+        target={duplicateTarget}
+        onOpenChange={(v) => !v && setDuplicateTarget(null)}
+      />
 
       <ConfirmDialog
         open={confirmDelete}

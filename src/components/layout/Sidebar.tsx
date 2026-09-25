@@ -31,6 +31,7 @@ import {
   ClipboardList,
   BarChart3,
   Wrench,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +67,7 @@ const menuItems: MenuItem[] = [
       { label: "추가 공정비", href: "/master/tolling-extra", icon: <Cog className="h-4 w-4" /> },
       { label: "부자재 세트", href: "/master/packaging-set", icon: <Box className="h-4 w-4" /> },
       { label: "원료", href: "/master/material", icon: <FlaskConical className="h-4 w-4" /> },
+      { label: "배합 템플릿", href: "/master/formulation-template", icon: <BookOpen className="h-4 w-4" /> },
       { label: "공급사", href: "/master/supplier", icon: <Truck className="h-4 w-4" /> },
       { label: "자재", href: "/master/supply", icon: <Box className="h-4 w-4" /> },
       { label: "공정", href: "/master/process", icon: <Cog className="h-4 w-4" /> },

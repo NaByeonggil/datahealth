@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Sheet, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Sheet, Pencil, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
+import DuplicateQuotationDialog, { DuplicateTarget } from "@/components/quotation/DuplicateQuotationDialog";
 import { Badge } from "@/components/ui/badge";
 
 interface QuotationRow {
@@ -41,6 +42,8 @@ export default function DetailedQuotationList() {
   const [total, setTotal] = useState(0);
   /** 삭제 확인 대상 */
   const [deleteTarget, setDeleteTarget] = useState<QuotationRow | null>(null);
+  /** 복제 대상 — 수신처만 바꿔 다시 낼 때 */
+  const [duplicateTarget, setDuplicateTarget] = useState<DuplicateTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const fetchData = (s?: string) => {
@@ -102,7 +105,7 @@ export default function DetailedQuotationList() {
                 <TableHead>상태</TableHead>
                 <TableHead>작성일</TableHead>
                 <TableHead className="w-56 text-center">양식</TableHead>
-                <TableHead className="w-24 text-center">관리</TableHead>
+                <TableHead className="w-32 text-center">관리</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -160,6 +163,13 @@ export default function DetailedQuotationList() {
                         onClick={() => router.push(`/quotation/detailed/${q.id}/edit`)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
+                      <Button variant="outline" size="sm" title="복제"
+                        onClick={() => setDuplicateTarget({
+                          id: q.id, type: "detailed", quotationNo: q.quotationNo,
+                          productName: q.productName, customerName: q.customerName,
+                        })}>
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
                       <Button variant="outline" size="sm" title="삭제"
                         onClick={() => setDeleteTarget(q)}>
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -172,6 +182,11 @@ export default function DetailedQuotationList() {
           </Table>
         </CardContent>
       </Card>
+
+      <DuplicateQuotationDialog
+        target={duplicateTarget}
+        onOpenChange={(v) => !v && setDuplicateTarget(null)}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

@@ -1,19 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { nextSimpleQuotationNo } from "@/lib/quotation/quotationNo";
 import {
   buildHeaderData,
   buildProductsCreate,
   simpleQuotationInclude as include,
 } from "@/lib/quotation/simpleQuotationPayload";
-
-function generateQuotationNo() {
-  const now = new Date();
-  const y = now.getFullYear().toString().slice(-2);
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const r = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
-  return `SQ${y}${m}${d}-${r}`;
-}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -58,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     const quotation = await prisma.simpleQuotation.create({
       data: {
-        quotationNo: body.quotationNo || generateQuotationNo(),
+        quotationNo: body.quotationNo || (await nextSimpleQuotationNo()),
         ...buildHeaderData(body),
         products: { create: products },
       },

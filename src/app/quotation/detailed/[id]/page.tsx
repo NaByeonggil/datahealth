@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Pencil, Trash2, FileDown, Printer, LayoutGrid, Sheet } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, FileDown, Printer, LayoutGrid, Sheet, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { DetailedQuotationType } from "@/types/quotation";
 import { calculateDetailedQuotation } from "@/lib/quotation/calculateDetailed";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
+import DuplicateQuotationDialog, { DuplicateTarget } from "@/components/quotation/DuplicateQuotationDialog";
 import { exportToExcel, exportToPDF } from "@/utils/exportDetailedQuotation";
 import QuotationSheetView from "@/components/quotation/detailed/QuotationSheetView";
 import QuotationSheetView2 from "@/components/quotation/detailed/QuotationSheetView2";
@@ -33,6 +34,8 @@ export default function DetailedQuotationDetail() {
   const [data, setData] = useState<DetailedQuotationType | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /** 복제 대상 — 수신처만 바꿔 다시 낼 때 */
+  const [duplicateTarget, setDuplicateTarget] = useState<DuplicateTarget | null>(null);
   const [view, setView] = useState<"normal" | "sheet" | "sheet2">("normal");
 
   // ?view=sheet | sheet2 로 들어오면 해당 엑셀 양식으로 연다 (목록에서 바로 진입)
@@ -121,12 +124,24 @@ export default function DetailedQuotationDetail() {
             onClick={() => router.push(`/quotation/detailed/${id}/edit`)}>
             <Pencil className="h-4 w-4 mr-1" />수정
           </Button>
+          <Button variant="outline" size="sm"
+            onClick={() => setDuplicateTarget({
+              id: String(id), type: "detailed", quotationNo: data.quotationNo,
+              productName: data.productName, customerName: data.customerName,
+            })}>
+            <Copy className="h-4 w-4 mr-1" />복제
+          </Button>
           <Button variant="outline" size="sm" disabled={deleting}
             onClick={() => setConfirmDelete(true)}>
             <Trash2 className="h-4 w-4 mr-1 text-destructive" />삭제
           </Button>
         </div>
       </div>
+
+      <DuplicateQuotationDialog
+        target={duplicateTarget}
+        onOpenChange={(v) => !v && setDuplicateTarget(null)}
+      />
 
       <ConfirmDialog
         open={confirmDelete}

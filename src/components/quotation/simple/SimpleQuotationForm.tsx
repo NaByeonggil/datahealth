@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Save, FileDown, X } from "lucide-react";
+import { Plus, Trash2, Save, FileDown, X, BookOpen, BookmarkPlus } from "lucide-react";
 import { toast } from "sonner";
 import { ProductTypeType } from "@/types/quotation";
 import { useSimpleQuotationStore } from "@/store/quotationStore";
@@ -25,6 +25,9 @@ import {
 import { CompanyInfoType } from "@/lib/company/supplier";
 import { exportSimpleQuotationPdf } from "@/lib/exports/simpleQuotationPdf";
 import { exportSimpleQuotationExcel } from "@/lib/exports/simpleQuotationExcel";
+import FormulationTemplateDialog from "@/components/quotation/simple/FormulationTemplateDialog";
+import SaveFormulationTemplateDialog from "@/components/quotation/simple/SaveFormulationTemplateDialog";
+import { FormulationTemplateLike, ResolvedTemplateItem } from "@/lib/quotation/formulationTemplate";
 
 const fmt = (n: number) => n.toLocaleString("ko-KR");
 
@@ -43,6 +46,9 @@ export default function SimpleQuotationForm({ quotationId }: SimpleQuotationForm
   /** 수정 모드에서 기존 견적서를 불러오는 중 */
   const [loading, setLoading] = useState(Boolean(quotationId));
   const isEdit = Boolean(quotationId);
+  /** 배합 템플릿 다이얼로그를 연 제품 번호 (null = 닫힘) */
+  const [templatePickerFor, setTemplatePickerFor] = useState<number | null>(null);
+  const [templateSaveFor, setTemplateSaveFor] = useState<number | null>(null);
 
   const { load, reset } = store;
   useEffect(() => {
@@ -126,6 +132,37 @@ export default function SimpleQuotationForm({ quotationId }: SimpleQuotationForm
       setTimeout(() => store.syncPackagingMethods(pi), 0);
     },
     [productTypes, store]
+  );
+
+  /**
+   * 배합 템플릿 적용 — 배합을 통째로 갈아끼운다.
+   * 제형이 비어 있으면 템플릿의 제형을 따라 쓴다(공임비·포장방법까지 함께 맞춰진다).
+   */
+  const applyTemplate = useCallback(
+    (pi: number, template: FormulationTemplateLike, resolved: ResolvedTemplateItem[]) => {
+      const product = store.products[pi];
+      if (template.productTypeId && !product?.productTypeId) {
+        changeProductType(pi, template.productTypeId);
+      }
+      store.applyFormulation(pi, {
+        items: resolved.map((r) => r.item),
+        productSpec: template.productSpec,
+        dosage: template.dosage,
+        subMaterialCostPerUnit: template.subMaterialCostPerUnit,
+      });
+      // 사용 통계는 실제로 얹었을 때만 올린다 (목록의 "자주 쓰는 순" 근거)
+      fetch(`/api/formulation-templates/${template.id}/use`, { method: "POST" }).catch(
+        () => undefined
+      );
+      setTemplatePickerFor(null);
+      const changed = resolved.filter((r) => r.priceChanged).length;
+      toast.success(
+        changed > 0
+          ? `"${template.name}" 배합을 적용했습니다. 단가가 바뀐 원료 ${changed}건은 현재 단가로 들어갔습니다.`
+          : `"${template.name}" 배합을 적용했습니다.`
+      );
+    },
+    [store, changeProductType]
   );
 
   const getExportData = useCallback(
@@ -347,11 +384,20 @@ export default function SimpleQuotationForm({ quotationId }: SimpleQuotationForm
 
               {/* 배합 */}
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                   <p className="text-sm font-medium">원료 목록 (배합)</p>
-                  <Button variant="outline" size="sm" onClick={() => store.addItem(pi)}>
-                    <Plus className="h-4 w-4 mr-1" />행 추가
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setTemplatePickerFor(pi)}>
+                      <BookOpen className="h-4 w-4 mr-1" />템플릿 불러오기
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={p.items.length === 0}
+                      onClick={() => setTemplateSaveFor(pi)}>
+                      <BookmarkPlus className="h-4 w-4 mr-1" />템플릿으로 저장
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => store.addItem(pi)}>
+                      <Plus className="h-4 w-4 mr-1" />행 추가
+                    </Button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <Table>
@@ -404,6 +450,8 @@ export default function SimpleQuotationForm({ quotationId }: SimpleQuotationForm
                               onManualChange={(name) => store.updateItem(pi, index, "materialName", name)}
                               onSelect={(mat) => {
                                 store.updateItem(pi, index, "materialName", mat.name);
+                                // materialName 을 먼저 쓰면 연결이 끊기므로 그 뒤에 잇는다
+                                store.updateItem(pi, index, "materialId", mat.id);
                                 store.updateItem(pi, index, "kgUnitPrice", mat.unitPrice);
                                 store.updateItem(pi, index, "origin", mat.origin ?? "");
                               }}
@@ -631,6 +679,20 @@ export default function SimpleQuotationForm({ quotationId }: SimpleQuotationForm
           <Save className="h-4 w-4 mr-2" />{isEdit ? "수정 저장" : "저장"}
         </Button>
       </div>
+
+      <FormulationTemplateDialog
+        open={templatePickerFor !== null}
+        onOpenChange={(v) => !v && setTemplatePickerFor(null)}
+        onApply={(template, resolved) => {
+          if (templatePickerFor !== null) applyTemplate(templatePickerFor, template, resolved);
+        }}
+      />
+      <SaveFormulationTemplateDialog
+        open={templateSaveFor !== null}
+        onOpenChange={(v) => !v && setTemplateSaveFor(null)}
+        product={templateSaveFor !== null ? store.products[templateSaveFor] ?? null : null}
+        fallbackName={store.productName}
+      />
     </div>
   );
 }

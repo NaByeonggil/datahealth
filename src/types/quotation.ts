@@ -41,6 +41,11 @@ export interface SimpleQuotationItemType {
   category: string;
   /** 주원료 / 부원료 */
   role: string;
+  /**
+   * 원료 마스터에서 골랐을 때의 연결 — 작성 화면에서만 들고 있고 견적서에는 저장하지 않는다.
+   * (견적서에 남는 건 복사된 단가 스냅샷이다. 이 값은 배합 템플릿으로 저장할 때 쓴다)
+   */
+  materialId?: string | null;
   materialName: string;
   theoryAmount: number;
   actualAmount: number;

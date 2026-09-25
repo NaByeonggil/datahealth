@@ -27,6 +27,7 @@ model ProductType {
   tollingRates     TollingRate[]
   tollingExtras    TollingExtra[]
   packagingSets    PackagingSet[]
+  formulationTemplates FormulationTemplate[]
 }
 
 // 가공비 이력
@@ -90,6 +91,7 @@ model Material {
   priceHistory  MaterialPrice[]
   detailedItems DetailedMaterialItem[]
   catalogItems  MaterialCatalog[]
+  templateItems FormulationTemplateItem[]
 }
 
 // 원료 가격 이력
@@ -130,6 +132,60 @@ model MaterialCatalog {
   @@index([supplierId])
   @@index([sourceFile])
   @@index([name])
+}
+
+// 배합 템플릿 — 되풀이해 쓰는 주원료 조합을 저장해 두고 견적서에 얹는다.
+// 항목 구조를 SimpleQuotationItem 과 같게 맞춰 견적서 배합으로 그대로 복사된다.
+//
+// 템플릿은 "무엇을 얼마나 넣는가"만 갖고 단가는 갖지 않는다.
+// 단가는 견적서에 얹는 순간 원료 마스터에서 그때의 값을 다시 읽어 넣는다
+// (견적서 행에 복사된 값이 곧 발행 시점 스냅샷이 된다).
+model FormulationTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  /// 기본 제형 — 비워두면 견적서에서 고른 제형을 그대로 쓴다
+  productTypeId String?
+  productType   ProductType? @relation(fields: [productTypeId], references: [id])
+  /// 제품규격 / 섭취방법 / 1정당 부원료비 — 견적서의 빈 칸을 채울 기본값
+  productSpec   String?
+  dosage        String?
+  subMaterialCostPerUnit Float?
+  note          String?
+  /// 자주 쓰는 템플릿을 위로 올리기 위한 사용 통계
+  usageCount    Int      @default(0)
+  lastUsedAt    DateTime?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items FormulationTemplateItem[]
+
+  @@index([name])
+  @@index([productTypeId])
+}
+
+// 배합 템플릿 구성 원료
+model FormulationTemplateItem {
+  id           String   @id @default(cuid())
+  templateId   String
+  template     FormulationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  sortOrder    Int      @default(1)
+  category     String   @default("일반식품")
+  /// 주원료 / 부원료 — 견적서 특기사항 표기가 이 값으로 갈린다
+  role         String   @default("주원료")
+  /// 원료 마스터 연결 — 있으면 적용 시 현재 단가를 다시 읽어온다
+  materialId   String?
+  material     Material? @relation(fields: [materialId], references: [id])
+  materialName String
+  theoryAmount Float    @default(0)
+  origin       String?
+  /// 마스터에 없는 원료(수기 입력)를 위한 참고 단가. 연결된 원료가 있으면 쓰지 않는다.
+  refUnitPrice Float    @default(0)
+  note         String?
+
+  @@index([templateId])
+  @@index([materialName])
 }
 
 // 일반견적서

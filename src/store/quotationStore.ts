@@ -69,6 +69,14 @@ export interface LoadedQuotation {
   }[] | null;
 }
 
+/** 배합 템플릿에서 뽑아온 값 — 배합은 갈아끼우고 나머지는 빈 칸만 채운다 */
+export interface AppliedFormulation {
+  items: SimpleQuotationItemType[];
+  productSpec?: string | null;
+  dosage?: string | null;
+  subMaterialCostPerUnit?: number | null;
+}
+
 interface SimpleQuotationActions {
   setField: (field: keyof SimpleQuotationState, value: unknown) => void;
   /** 저장된 견적서를 폼 상태로 되돌린다 (수정 화면) */
@@ -80,6 +88,8 @@ interface SimpleQuotationActions {
   /** 제형이 바뀌면 그 제품의 자동 포장방법을 다시 쓴다 */
   syncPackagingMethods: (pi: number) => void;
   // 배합
+  /** 배합 템플릿을 제품에 얹는다 — 배합은 통째로 바꾸고, 비어 있는 기본값만 채운다 */
+  applyFormulation: (pi: number, payload: AppliedFormulation) => void;
   addItem: (pi: number) => void;
   removeItem: (pi: number, index: number) => void;
   updateItem: (pi: number, index: number, field: keyof SimpleQuotationItemType, value: unknown) => void;
@@ -122,6 +132,7 @@ const createEmptyItem = (sortOrder: number): SimpleQuotationItemType => ({
   sortOrder,
   category: "일반식품",
   role: "주원료",
+  materialId: null,
   materialName: "",
   theoryAmount: 0,
   actualAmount: 0,
@@ -178,6 +189,8 @@ export const useSimpleQuotationStore = create<SimpleQuotationState & SimpleQuota
                   sortOrder: i + 1,
                   category: it.category ?? "일반식품",
                   role: it.role ?? "주원료",
+                  // 견적서에는 저장하지 않는 값 — 다시 고르기 전까지는 비어 있다
+                  materialId: null,
                   materialName: it.materialName ?? "",
                   theoryAmount: it.theoryAmount ?? 0,
                   actualAmount: it.actualAmount ?? 0,
@@ -227,6 +240,19 @@ export const useSimpleQuotationStore = create<SimpleQuotationState & SimpleQuota
         })),
       })),
 
+    applyFormulation: (pi, payload) =>
+      set((s) => ({
+        products: patchProduct(s.products, pi, (p) => ({
+          ...p,
+          items: payload.items.map((it, i) => ({ ...it, sortOrder: i + 1 })),
+          // 이미 손으로 써 둔 값은 템플릿이 덮어쓰지 않는다
+          productSpec: p.productSpec || payload.productSpec || "",
+          dosage: p.dosage || payload.dosage || "",
+          subMaterialCostPerUnit:
+            payload.subMaterialCostPerUnit ?? p.subMaterialCostPerUnit,
+        })),
+      })),
+
     addItem: (pi) =>
       set((s) => ({
         products: patchProduct(s.products, pi, (p) => ({
@@ -245,6 +271,8 @@ export const useSimpleQuotationStore = create<SimpleQuotationState & SimpleQuota
         products: patchProduct(s.products, pi, (p) => {
           const items = [...p.items];
           const item = { ...items[index], [field]: value };
+          // 원료명을 손으로 고치면 마스터 연결은 더 이상 유효하지 않다
+          if (field === "materialName") item.materialId = null;
           // 자동 계산
           if (field === "theoryAmount") {
             item.actualAmount = Number(value) / 1000;
