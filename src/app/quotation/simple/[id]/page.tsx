@@ -24,6 +24,7 @@ import { exportSimpleQuotationPdf } from "@/lib/exports/simpleQuotationPdf";
 import { exportSimpleQuotationExcel } from "@/lib/exports/simpleQuotationExcel";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import DuplicateQuotationDialog, { DuplicateTarget } from "@/components/quotation/DuplicateQuotationDialog";
+import PriceDriftBanner from "@/components/quotation/PriceDriftBanner";
 
 /** API 응답 — 화면 표시에 필요한 항목만 추린 형태 */
 interface Quotation extends SavedQuotation {
@@ -168,6 +169,8 @@ export default function SimpleQuotationDetail() {
           <Trash2 className="h-4 w-4 mr-1 text-destructive" />삭제
         </Button>
       </div>
+
+      <PriceDriftBanner type="simple" quotationId={String(id)} />
 
       <DuplicateQuotationDialog
         target={duplicateTarget}

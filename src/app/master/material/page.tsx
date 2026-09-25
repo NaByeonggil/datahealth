@@ -15,9 +15,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, Columns3, ChevronsLeftRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Columns3, ChevronsLeftRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, History } from "lucide-react";
 import { toast } from "sonner";
 import MaterialCatalogTable from "@/components/master/MaterialCatalogTable";
+import MaterialPriceHistoryDialog from "@/components/master/MaterialPriceHistoryDialog";
 
 interface Supplier { id: string; code: string; name: string; }
 interface Material {
@@ -37,6 +38,8 @@ export default function MaterialPage() {
   const [filterSupplier, setFilterSupplier] = useState("");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  /** 단가 이력을 열어 둔 원료 */
+  const [historyOf, setHistoryOf] = useState<Material | null>(null);
   const [editItem, setEditItem] = useState<Material | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -71,13 +74,15 @@ export default function MaterialPage() {
       code: "", name: "", category: "일반식품", unit: "kg", unitPrice: 0,
       supplierId: "", origin: "", specification: "", minOrderQty: "", packingUnit: "",
       isFunctional: false, certifications: "", note: "", updatedBy: "관리자", isActive: true,
+      changeReason: "",
     });
     setEditItem(null);
     setDialogOpen(true);
   };
 
   const openEdit = (item: Material) => {
-    setForm({ ...item, minOrderQty: item.minOrderQty ?? "", packingUnit: item.packingUnit ?? "" });
+    // 사유는 매번 새로 받는다 — 직전 수정의 사유가 딸려가면 이력이 거짓이 된다
+    setForm({ ...item, minOrderQty: item.minOrderQty ?? "", packingUnit: item.packingUnit ?? "", changeReason: "" });
     setEditItem(item);
     setDialogOpen(true);
   };
@@ -100,6 +105,7 @@ export default function MaterialPage() {
     if (res.ok) {
       toast.success(editItem ? "수정되었습니다." : "등록되었습니다.");
       setDialogOpen(false);
+      setForm({ ...form, changeReason: "" });
       fetchData();
     } else {
       const err = await res.json();
@@ -195,7 +201,7 @@ export default function MaterialPage() {
                     <TableHead>마지막 업데이트</TableHead>
                   </>
                 )}
-                <TableHead className="w-24">관리</TableHead>
+                <TableHead className="w-32">관리</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -233,7 +239,8 @@ export default function MaterialPage() {
                   )}
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" title="단가 이력" onClick={() => setHistoryOf(m)}><History className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" title="수정" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(m.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </div>
                   </TableCell>
@@ -320,7 +327,15 @@ export default function MaterialPage() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">단가(원)</Label>
-              <div className="col-span-3"><Input type="number" value={String(form.unitPrice ?? 0)} onChange={e => setForm({ ...form, unitPrice: Number(e.target.value) })} /></div>
+              <div className="col-span-3">
+                <Input type="number" value={String(form.unitPrice ?? 0)} onChange={e => setForm({ ...form, unitPrice: Number(e.target.value) })} />
+                {editItem && Number(form.unitPrice) !== editItem.unitPrice && (
+                  <p className="text-xs text-amber-700 mt-1">
+                    {fmt(editItem.unitPrice)}원 → {fmt(Number(form.unitPrice) || 0)}원 으로 바뀝니다.
+                    단가 이력에 기록되며, 이미 발행된 견적서 금액은 그대로 유지됩니다.
+                  </p>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">원산지</Label>
@@ -352,6 +367,16 @@ export default function MaterialPage() {
               <div className="col-span-3"><Input value={String(form.certifications || "")} onChange={e => setForm({ ...form, certifications: e.target.value })} placeholder="HACCP, ISO 등" /></div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
+              {editItem && Number(form.unitPrice) !== editItem.unitPrice && (
+                <>
+                  <Label className="text-right">단가 변경 사유</Label>
+                  <div className="col-span-3">
+                    <Input placeholder="예: 공급사 단가 인상 (2026-09 적용)"
+                      value={String(form.changeReason || "")}
+                      onChange={e => setForm({ ...form, changeReason: e.target.value })} />
+                  </div>
+                </>
+              )}
               <Label className="text-right">비고</Label>
               <div className="col-span-3">
                 <textarea className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
@@ -390,6 +415,12 @@ export default function MaterialPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <MaterialPriceHistoryDialog
+        materialId={historyOf?.id ?? null}
+        materialName={historyOf?.name}
+        onOpenChange={(v) => !v && setHistoryOf(null)}
+      />
+
     </div>
   );
 }

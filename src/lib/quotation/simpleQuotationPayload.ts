@@ -19,13 +19,19 @@ export interface SimpleQuotationBody {
   products?: ProductBody[];
 }
 
+export interface ItemBody {
+  materialId?: string | null;
+  materialName?: string;
+  [key: string]: unknown;
+}
+
 export interface ProductBody {
   name?: string;
   productTypeId: string;
   subMaterialCostPerUnit?: number;
   productSpec?: string | null;
   dosage?: string | null;
-  items?: Record<string, unknown>[];
+  items?: ItemBody[];
   lines?: Record<string, unknown>[];
 }
 
@@ -65,6 +71,8 @@ export function buildProductsCreate(body: SimpleQuotationBody) {
           sortOrder: i + 1,
           category: (item.category as string) || "일반식품",
           role: (item.role as string) || "주원료",
+          // 금액에는 쓰지 않는다 — 발행 이후 마스터 단가 변동을 대조할 연결고리다
+          materialId: (item.materialId as string) || null,
           materialName: (item.materialName as string) || "",
           theoryAmount: (item.theoryAmount as number) || 0,
           actualAmount: (item.actualAmount as number) || 0,

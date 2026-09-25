@@ -92,18 +92,27 @@ model Material {
   detailedItems DetailedMaterialItem[]
   catalogItems  MaterialCatalog[]
   templateItems FormulationTemplateItem[]
+  simpleItems   SimpleQuotationItem[]
 }
 
 // 원료 가격 이력
+//
+// 현재 단가는 endDate 가 비어 있는 행이다(원료당 하나). 단가를 고치면
+// 열려 있던 행을 닫고(endDate = 변경시각) 새 행을 연다.
+// Material.unitPrice 는 그 "현재 행"을 빠르게 읽기 위한 사본이다.
 model MaterialPrice {
   id           String   @id @default(cuid())
   materialId   String
-  material     Material @relation(fields: [materialId], references: [id])
+  material     Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
   price        Float
   effectiveDate DateTime
   endDate      DateTime?
   changedBy    String?
+  /// 무엇 때문에 바뀌었는지 (공급사 단가 인상, 환율, 수기 정정 …)
+  changeReason String?
   createdAt    DateTime @default(now())
+
+  @@index([materialId, endDate])
 }
 
 // 공급사 취급품목 카탈로그 — 단가 없이 "취급 가능"만 관리
@@ -281,6 +290,10 @@ model SimpleQuotationItem {
   category          String
   /// 주원료 / 부원료 — 특기사항의 원료 표기를 나눌 때 쓴다
   role              String   @default("주원료")
+  /// 원료 마스터 연결 — 금액에는 쓰지 않는다(금액은 아래 kgUnitPrice 스냅샷이 전부).
+  /// 발행 이후 마스터 단가가 움직였는지 대조하는 용도다.
+  materialId        String?
+  material          Material? @relation(fields: [materialId], references: [id])
   materialName      String
   theoryAmount      Float    @default(0)
   actualAmount      Float    @default(0)
@@ -737,3 +750,4 @@ model AiChatMessage {
   tokenCount  Int      @default(0)
   createdAt   DateTime @default(now())
 }
+

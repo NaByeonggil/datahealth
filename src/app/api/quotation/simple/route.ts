@@ -6,6 +6,7 @@ import {
   buildProductsCreate,
   simpleQuotationInclude as include,
 } from "@/lib/quotation/simpleQuotationPayload";
+import { linkQuotationProducts } from "@/lib/quotation/linkQuotationItems";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (!body.productName || !String(body.productName).trim()) {
       return NextResponse.json({ error: "견적서 제목을 입력해주세요." }, { status: 400 });
     }
-    const products = buildProductsCreate(body);
+    const products = await linkQuotationProducts(buildProductsCreate(body));
     if (products.length === 0) {
       return NextResponse.json({ error: "제품을 최소 1개 등록해주세요." }, { status: 400 });
     }

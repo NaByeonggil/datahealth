@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { openInitialPrice } from "@/lib/materials/priceHistory";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -33,13 +34,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const item = await prisma.material.create({
+  const unitPrice = Number(body.unitPrice) || 0;
+  // 등록 시점의 단가로 첫 이력 행을 연다 — 이후 변동을 여기서부터 잰다
+  const item = await prisma.$transaction(async (tx) => {
+    const created = await tx.material.create({
     data: {
       supplierId: body.supplierId,
       code: body.code, name: body.name,
       category: body.category || "일반식품", origin: body.origin || null,
       specification: body.specification || null,
-      unit: body.unit || "kg", unitPrice: body.unitPrice || 0,
+      unit: body.unit || "kg", unitPrice,
       minOrderQty: body.minOrderQty || null,
       packingUnit: body.packingUnit ?? null,
       isFunctional: body.isFunctional || false,
@@ -47,6 +51,16 @@ export async function POST(request: NextRequest) {
       note: body.note || null, updatedBy: body.updatedBy || "관리자",
       isActive: body.isActive ?? true,
     },
+    });
+
+    await openInitialPrice(tx, {
+      materialId: created.id,
+      newPrice: unitPrice,
+      effectiveDate: body.effectiveDate ? new Date(body.effectiveDate) : null,
+      changedBy: body.updatedBy || "관리자",
+    });
+
+    return created;
   });
   return NextResponse.json(item, { status: 201 });
 }

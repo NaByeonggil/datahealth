@@ -1,5 +1,3 @@
-import { prisma } from "@/lib/prisma";
-
 /**
  * 배합 템플릿 저장 payload 조립 — 생성(POST)과 수정(PUT)이 같은 규칙을 쓰도록 모아둔다.
  */
@@ -57,35 +55,6 @@ export function buildTemplateItems(body: FormulationTemplateBody) {
       refUnitPrice: Number(i.refUnitPrice) || 0,
       note: i.note || null,
     }));
-}
-
-type LinkableItem = ReturnType<typeof buildTemplateItems>[number];
-
-/**
- * materialId 가 비어 있는 행을 원료명으로 마스터에 이어 붙인다.
- *
- * 견적서를 다시 불러와 템플릿으로 저장하거나 마스터 화면에서 직접 입력한 경우
- * materialId 가 없는데, 연결이 없으면 적용할 때 현재 단가를 읽어올 수 없다.
- * 이름이 정확히 일치하고 후보가 하나뿐일 때만 잇는다(동명이의 원료는 손대지 않는다).
- */
-export async function linkMaterialsByName(items: LinkableItem[]): Promise<LinkableItem[]> {
-  const names = [...new Set(items.filter((i) => !i.materialId).map((i) => i.materialName))];
-  if (names.length === 0) return items;
-
-  const found = await prisma.material.findMany({
-    where: { name: { in: names }, isActive: true },
-    select: { id: true, name: true },
-  });
-
-  const byName = new Map<string, string | null>();
-  for (const m of found) {
-    // 같은 이름이 둘 이상이면 어느 쪽인지 알 수 없으므로 연결하지 않는다
-    byName.set(m.name, byName.has(m.name) ? null : m.id);
-  }
-
-  return items.map((i) =>
-    i.materialId ? i : { ...i, materialId: byName.get(i.materialName) ?? null }
-  );
 }
 
 /** 조회 공통 include — 적용 시 현재 단가를 읽을 수 있게 원료 마스터를 함께 가져온다 */

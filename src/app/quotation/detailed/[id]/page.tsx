@@ -14,6 +14,7 @@ import { DetailedQuotationType } from "@/types/quotation";
 import { calculateDetailedQuotation } from "@/lib/quotation/calculateDetailed";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import DuplicateQuotationDialog, { DuplicateTarget } from "@/components/quotation/DuplicateQuotationDialog";
+import PriceDriftBanner from "@/components/quotation/PriceDriftBanner";
 import { exportToExcel, exportToPDF } from "@/utils/exportDetailedQuotation";
 import QuotationSheetView from "@/components/quotation/detailed/QuotationSheetView";
 import QuotationSheetView2 from "@/components/quotation/detailed/QuotationSheetView2";
@@ -137,6 +138,9 @@ export default function DetailedQuotationDetail() {
           </Button>
         </div>
       </div>
+
+      {/* 인쇄용 양식 뷰에는 띄우지 않는다 — 고객에게 나가는 종이다 */}
+      {view === "normal" && <PriceDriftBanner type="detailed" quotationId={String(id)} />}
 
       <DuplicateQuotationDialog
         target={duplicateTarget}

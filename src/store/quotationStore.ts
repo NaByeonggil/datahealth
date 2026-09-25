@@ -189,8 +189,7 @@ export const useSimpleQuotationStore = create<SimpleQuotationState & SimpleQuota
                   sortOrder: i + 1,
                   category: it.category ?? "일반식품",
                   role: it.role ?? "주원료",
-                  // 견적서에는 저장하지 않는 값 — 다시 고르기 전까지는 비어 있다
-                  materialId: null,
+                  materialId: it.materialId ?? null,
                   materialName: it.materialName ?? "",
                   theoryAmount: it.theoryAmount ?? 0,
                   actualAmount: it.actualAmount ?? 0,

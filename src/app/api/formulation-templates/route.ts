@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   buildTemplateHeader,
   buildTemplateItems,
-  linkMaterialsByName,
   formulationTemplateInclude as include,
 } from "@/lib/quotation/formulationTemplatePayload";
+import { linkMaterialsByName } from "@/lib/materials/linkByName";
 
 /**
  * 배합 템플릿 목록.
