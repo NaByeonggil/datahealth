@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { chatCompletion } from "./aiClient";
+import { chatCompletion, isAiAvailable, AiUnavailableError } from "./aiClient";
 import { runFunctionCallingLoop } from "./functionCalling";
 import { getClassifyInquiryPrompt } from "./prompts/classifyInquiry";
 import { getExtractInfoPrompt } from "./prompts/extractInfo";
@@ -20,12 +20,16 @@ function parseJsonResponse(text: string): Record<string, unknown> | null {
 }
 
 // 1단계: 문의 분류
-async function classifyInquiry(title: string, content: string) {
+async function classifyInquiry(inquiryId: string, title: string, content: string) {
   const prompt = getClassifyInquiryPrompt(title, content);
   const response = await chatCompletion({
     messages: [{ role: "user", content: prompt }],
     max_tokens: 256,
     temperature: 0.1,
+    json: true,
+    thinking: false,
+    taskType: "classify",
+    relatedId: inquiryId,
   });
 
   const parsed = parseJsonResponse(response.content ?? "");
@@ -37,12 +41,16 @@ async function classifyInquiry(title: string, content: string) {
 }
 
 // 2단계: 핵심 정보 추출
-async function extractInfo(title: string, content: string): Promise<ExtractedInquiryData> {
+async function extractInfo(inquiryId: string, title: string, content: string): Promise<ExtractedInquiryData> {
   const prompt = getExtractInfoPrompt(title, content);
   const response = await chatCompletion({
     messages: [{ role: "user", content: prompt }],
     max_tokens: 512,
     temperature: 0.1,
+    json: true,
+    thinking: false,
+    taskType: "extract",
+    relatedId: inquiryId,
   });
 
   const parsed = parseJsonResponse(response.content ?? "");
@@ -57,7 +65,7 @@ async function extractInfo(title: string, content: string): Promise<ExtractedInq
 }
 
 // 3단계: 견적 문의 시 Function Calling으로 비용 계산
-async function calculateQuotation(extractedData: ExtractedInquiryData) {
+async function calculateQuotation(inquiryId: string, extractedData: ExtractedInquiryData) {
   if (!extractedData.materials?.length && !extractedData.productType) return null;
 
   const userMessage = `다음 정보로 견적을 산출해주세요:
@@ -68,10 +76,13 @@ async function calculateQuotation(extractedData: ExtractedInquiryData) {
 
 필요한 함수를 순서대로 호출하여 견적을 계산해주세요.`;
 
-  const result = await runFunctionCallingLoop([
-    { role: "system", content: CHAT_SYSTEM_PROMPT },
-    { role: "user", content: userMessage },
-  ]);
+  const result = await runFunctionCallingLoop(
+    [
+      { role: "system", content: CHAT_SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ],
+    { relatedId: inquiryId }
+  );
 
   return {
     content: result.finalContent,
@@ -81,6 +92,7 @@ async function calculateQuotation(extractedData: ExtractedInquiryData) {
 
 // 4단계: 답변 생성
 async function generateResponse(
+  inquiryId: string,
   title: string,
   content: string,
   extractedData: ExtractedInquiryData,
@@ -89,15 +101,25 @@ async function generateResponse(
   const prompt = getGenerateResponsePrompt(title, content, extractedData, quotationResult);
   const response = await chatCompletion({
     messages: [{ role: "user", content: prompt }],
-    max_tokens: 1024,
+    max_tokens: 1500,
     temperature: 0.7,
+    thinking: false,
+    taskType: "generate_response",
+    relatedId: inquiryId,
   });
 
   return response.content ?? "답변을 생성하지 못했습니다.";
 }
 
+export interface ProcessResult {
+  ok: boolean;
+  /** AI 서버가 꺼져 있어 손대지 않고 그대로 둠 */
+  offline?: boolean;
+  error?: string;
+}
+
 // 전체 파이프라인: 문의 처리
-export async function processInquiry(inquiryId: string): Promise<void> {
+export async function processInquiry(inquiryId: string): Promise<ProcessResult> {
   const inquiry = await prisma.boardInquiry.findUnique({ where: { id: inquiryId } });
   if (!inquiry) throw new Error("문의를 찾을 수 없습니다.");
 
@@ -109,19 +131,35 @@ export async function processInquiry(inquiryId: string): Promise<void> {
 
   try {
     // 1. 분류
-    const classification = await classifyInquiry(inquiry.title, inquiry.content);
+    const classification = await classifyInquiry(inquiryId, inquiry.title, inquiry.content);
 
     // 2. 정보 추출
-    const extractedData = await extractInfo(inquiry.title, inquiry.content);
+    const extractedData = await extractInfo(inquiryId, inquiry.title, inquiry.content);
 
     // 3. 견적 계산 (견적 문의인 경우)
     let quotationResult = null;
     if (classification.inquiryType === "quotation" || classification.inquiryType === "urgent") {
-      quotationResult = await calculateQuotation(extractedData);
+      quotationResult = await calculateQuotation(inquiryId, extractedData);
     }
 
-    // 4. 답변 생성
+    // 4. 답변 생성 — 스팸에는 답하지 않는다
+    if (classification.inquiryType === "spam") {
+      await prisma.boardInquiry.update({
+        where: { id: inquiryId },
+        data: {
+          status: classification.confidence < 0.7 ? "human_review" : "closed",
+          inquiryType: "spam",
+          priority: "low",
+          confidence: classification.confidence,
+          aiResponse: "스팸으로 분류되어 답변을 생성하지 않았습니다.",
+          processedAt: new Date(),
+        },
+      });
+      return { ok: true };
+    }
+
     const aiResponse = await generateResponse(
+      inquiryId,
       inquiry.title,
       inquiry.content,
       extractedData,
@@ -143,21 +181,46 @@ export async function processInquiry(inquiryId: string): Promise<void> {
         processedAt: new Date(),
       },
     });
+    return { ok: true };
   } catch (error) {
-    // 실패 시 human_review로 설정
+    const message = error instanceof Error ? error.message : String(error);
+
+    // AI 서버가 꺼져 있는 것은 문의의 문제가 아니다 — 원래 상태로 되돌려 다음에 다시 처리한다
+    if (error instanceof AiUnavailableError) {
+      await prisma.boardInquiry.update({ where: { id: inquiryId }, data: { status: inquiry.status } });
+      return { ok: false, offline: true, error: message };
+    }
+
+    // 그 밖의 실패는 사람이 보도록 넘긴다
     await prisma.boardInquiry.update({
       where: { id: inquiryId },
       data: {
         status: "human_review",
-        aiResponse: `AI 처리 중 오류 발생: ${error instanceof Error ? error.message : String(error)}`,
+        aiResponse: `AI 처리 중 오류 발생: ${message}`,
         processedAt: new Date(),
       },
     });
+    return { ok: false, error: message };
   }
 }
 
+/** 폴링이 겹쳐 같은 문의를 두 번 돌리지 않도록 */
+let monitorRunning = false;
+
 // 대기중인 문의 자동 처리 (폴링용)
-export async function processAllPending(): Promise<{ processed: number; errors: number }> {
+export async function processAllPending(): Promise<{ processed: number; errors: number; offline?: boolean; busy?: boolean }> {
+  if (monitorRunning) return { processed: 0, errors: 0, busy: true };
+  monitorRunning = true;
+  try {
+    // AI PC 가 꺼져 있으면 문의를 건드리지 않고 조용히 넘어간다
+    if (!(await isAiAvailable())) return { processed: 0, errors: 0, offline: true };
+    return await runPending();
+  } finally {
+    monitorRunning = false;
+  }
+}
+
+async function runPending(): Promise<{ processed: number; errors: number; offline?: boolean }> {
   const pendingInquiries = await prisma.boardInquiry.findMany({
     where: { status: "pending" },
     orderBy: { createdAt: "asc" },
@@ -169,8 +232,10 @@ export async function processAllPending(): Promise<{ processed: number; errors: 
 
   for (const inquiry of pendingInquiries) {
     try {
-      await processInquiry(inquiry.id);
-      processed++;
+      const result = await processInquiry(inquiry.id);
+      if (result.offline) return { processed, errors, offline: true };
+      if (result.ok) processed++;
+      else errors++;
     } catch {
       errors++;
     }

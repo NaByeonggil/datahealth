@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// API 키는 어떤 응답에도 원문으로 내보내지 않는다
+const maskKey = <T extends { apiKey: string | null }>(s: T) => ({
+  ...s,
+  apiKey: s.apiKey ? "••••" + s.apiKey.slice(-4) : null,
+});
+
 // GET: AI 설정 목록
 export async function GET() {
   const settings = await prisma.aiSetting.findMany({
     orderBy: { priority: "asc" },
   });
-  // API 키는 마스킹 처리
-  const masked = settings.map((s) => ({
-    ...s,
-    apiKey: s.apiKey ? "••••" + s.apiKey.slice(-4) : null,
-  }));
-  return NextResponse.json(masked);
+  return NextResponse.json(settings.map(maskKey));
 }
 
 // POST: AI 설정 생성
@@ -31,5 +32,5 @@ export async function POST(request: Request) {
       description: body.description || null,
     },
   });
-  return NextResponse.json(setting, { status: 201 });
+  return NextResponse.json(maskKey(setting), { status: 201 });
 }

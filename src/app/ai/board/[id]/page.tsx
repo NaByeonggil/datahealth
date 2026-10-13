@@ -39,8 +39,10 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
   const handleProcess = async () => {
     setProcessing(true);
     try {
-      await fetch(`/api/ai/board/${id}/process`, { method: "POST" });
-      toast.success("AI 처리 완료");
+      const res = await fetch(`/api/ai/board/${id}/process`, { method: "POST" });
+      const result = await res.json();
+      if (result.success) toast.success("AI 처리 완료");
+      else toast.error(result.error ?? "AI 처리 실패");
       fetchInquiry();
     } catch {
       toast.error("처리 실패");
@@ -166,7 +168,7 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
             rows={4}
           />
           <div className="flex gap-2">
-            {inquiry.status === "pending" && (
+            {(inquiry.status === "pending" || inquiry.status === "human_review") && (
               <Button variant="outline" onClick={handleProcess} disabled={processing}>
                 {processing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Bot className="h-4 w-4 mr-1" />}
                 AI 처리 실행
