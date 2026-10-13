@@ -35,6 +35,8 @@ interface SimpleQuotationState {
   foodType: string;
   /** 포장 옵션을 모두 발주하는가. false=택일(합계 없음), true=합산 */
   sumOptions: boolean;
+  /** 이 견적서가 답하는 홈페이지 문의 ID (없으면 빈 문자열) */
+  inquiryExternalId: string;
   products: QuotationProductState[];
 }
 
@@ -52,6 +54,7 @@ export interface LoadedQuotation {
   paymentTerms?: string | null;
   foodType?: string | null;
   sumOptions?: boolean | null;
+  inquiryExternalId?: string | null;
   products?: {
     name?: string | null;
     productTypeId?: string | null;
@@ -125,6 +128,7 @@ const defaultSimpleState: SimpleQuotationState = {
   paymentTerms: "",
   foodType: "건강기능식품",
   sumOptions: false,
+  inquiryExternalId: "",
   products: [emptyProduct()],
 };
 
@@ -172,6 +176,7 @@ export const useSimpleQuotationStore = create<SimpleQuotationState & SimpleQuota
         paymentTerms: q.paymentTerms ?? "",
         foodType: q.foodType ?? "건강기능식품",
         sumOptions: q.sumOptions === true,
+        inquiryExternalId: q.inquiryExternalId ?? "",
         products:
           (q.products ?? []).length > 0
             ? (q.products ?? []).map((p) => ({

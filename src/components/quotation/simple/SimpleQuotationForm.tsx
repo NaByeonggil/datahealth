@@ -34,9 +34,18 @@ const fmt = (n: number) => n.toLocaleString("ko-KR");
 interface SimpleQuotationFormProps {
   /** 넘기면 수정 모드 — 해당 견적서를 불러와 채우고 저장 시 덮어쓴다 */
   quotationId?: string;
+  /** 넘기면 그 홈페이지 문의의 고객·제목을 미리 채우고, 저장할 때 문의와 연결한다 */
+  inquiryId?: string;
 }
 
-export default function SimpleQuotationForm({ quotationId }: SimpleQuotationFormProps = {}) {
+/** 홈페이지 문의에서 가져온 참고 정보 — 폼 위에 띄워 두고 보면서 쓴다 */
+interface InquiryPrefill {
+  title: string;
+  content: string;
+  factoryAdminUrl: string;
+}
+
+export default function SimpleQuotationForm({ quotationId, inquiryId }: SimpleQuotationFormProps = {}) {
   const router = useRouter();
   const store = useSimpleQuotationStore();
   const [productTypes, setProductTypes] = useState<ProductTypeType[]>([]);
@@ -50,11 +59,26 @@ export default function SimpleQuotationForm({ quotationId }: SimpleQuotationForm
   const [templatePickerFor, setTemplatePickerFor] = useState<number | null>(null);
   const [templateSaveFor, setTemplateSaveFor] = useState<number | null>(null);
 
-  const { load, reset } = store;
+  const [inquiry, setInquiry] = useState<InquiryPrefill | null>(null);
+
+  const { load, reset, setField } = store;
   useEffect(() => {
     if (!quotationId) {
       // 새로 쓸 때는 직전 작성 내용이 남지 않게 비운다
       reset();
+      if (!inquiryId) return;
+
+      fetch(`/api/ai/board/by-external/${encodeURIComponent(inquiryId)}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((q) => {
+          setField("inquiryExternalId", inquiryId);
+          setField("productName", q.title ?? "");
+          setField("customerName", q.customer?.name ?? q.company ?? q.authorName ?? "");
+          setField("customerContact", q.customer?.manager ?? q.authorName ?? "");
+          setField("customerPhone", q.customer?.contact ?? "");
+          setInquiry({ title: q.title, content: q.content, factoryAdminUrl: q.factoryAdminUrl });
+        })
+        .catch(() => toast.error("홈페이지 문의 정보를 불러오지 못했습니다. 고객 정보를 직접 입력해주세요."));
       return;
     }
     setLoading(true);
@@ -251,6 +275,26 @@ export default function SimpleQuotationForm({ quotationId }: SimpleQuotationForm
 
   return (
     <div className="space-y-6 max-w-6xl">
+      {inquiry && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardContent className="py-4 text-sm space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-medium">홈페이지 문의로 작성하는 견적서 — {inquiry.title}</p>
+              <a href={inquiry.factoryAdminUrl} target="_blank" rel="noreferrer"
+                className="text-xs text-blue-700 underline underline-offset-2 shrink-0">
+                문의 원문 열기
+              </a>
+            </div>
+            <pre className="whitespace-pre-wrap font-sans text-xs text-muted-foreground max-h-40 overflow-y-auto">
+              {inquiry.content}
+            </pre>
+            <p className="text-xs text-muted-foreground">
+              고객 정보와 제목을 문의에서 가져왔습니다. 저장한 뒤 상세 화면에서 견적서를 문의 답글로 보낼 수 있습니다.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 기본 정보 */}
       <Card>
         <CardHeader><CardTitle>기본 정보</CardTitle></CardHeader>

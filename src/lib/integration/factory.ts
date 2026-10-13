@@ -20,6 +20,10 @@ function secret(): string | null {
 
 export const integrationConfigured = () => secret() !== null;
 
+/** 서버끼리 부르는 홈페이지 내부 주소 (같은 도커 네트워크의 컨테이너 이름) */
+const factoryInternalUrl = () =>
+  (process.env.FACTORY_INTERNAL_URL || "http://factory-app:3000").replace(/\/+$/, "");
+
 function hmac(payload: string): string {
   return createHmac("sha256", secret() ?? "").update(payload).digest("hex");
 }
@@ -40,6 +44,30 @@ export function verifyRequestSignature(request: Request, path: string, body: str
   const signature = request.headers.get("x-integration-signature") ?? "";
   if (!/^\d+$/.test(timestamp) || Math.abs(Date.now() - Number(timestamp)) > MAX_SKEW_MS) return false;
   return sameSignature(signature, hmac(`${timestamp}.${request.method}.${path}.${body}`));
+}
+
+/**
+ * 홈페이지 쪽 연동 API 호출. 닿지 않으면 null.
+ * 서명 규칙은 받는 쪽과 같다: `<시각>.<METHOD>.<경로>.<본문>`
+ */
+export async function callFactory(path: string, body: string, timeoutMs = 20_000): Promise<Response | null> {
+  if (!secret()) return null;
+  const timestamp = String(Date.now());
+  try {
+    return await fetch(`${factoryInternalUrl()}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-integration-timestamp": timestamp,
+        "x-integration-signature": hmac(`${timestamp}.POST.${path}.${body}`),
+      },
+      body,
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    return null;
+  }
 }
 
 // ── 자동 로그인 토큰 ────────────────────────────────────────

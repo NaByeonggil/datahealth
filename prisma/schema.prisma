@@ -230,10 +230,17 @@ model SimpleQuotation {
 
   note            String?
 
+  /// 이 견적서가 답하는 홈페이지(factory) 문의 ID
+  inquiryExternalId String?
+  /// 견적서 PDF 를 그 문의의 답글로 보낸 시각
+  sentToInquiryAt   DateTime?
+
   products        SimpleQuotationProduct[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([inquiryExternalId])
 }
 
 // 일반견적서 원료 항목
@@ -701,6 +708,8 @@ model BoardInquiry {
   source          String   @default("internal")
   /// 홈페이지(factory) 쪽 문의 ID. 같은 문의가 두 번 넘어와도 한 건으로 유지한다.
   externalId      String?  @unique
+  /// 이 문의로 등록된 고객사 (견적서 만들기를 누를 때 생긴다)
+  customerId      String?
   /// (사용 안 함) 자체 접수 폼 시절의 접수번호 — 고객 창구는 홈페이지로 일원화했다
   receiptNo       String?  @unique
   /// (사용 안 함) 자체 접수 폼 시절의 동의 시각

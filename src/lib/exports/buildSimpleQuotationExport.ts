@@ -63,7 +63,10 @@ export interface SavedQuotation {
 function toDateString(v?: string | Date): string | undefined {
   if (!v) return undefined;
   const d = v instanceof Date ? v : new Date(v);
-  return Number.isNaN(d.getTime()) ? undefined : d.toISOString().slice(0, 10);
+  if (Number.isNaN(d.getTime())) return undefined;
+  // toISOString 은 UTC 날짜라 오전 9시 전에 만든 견적서는 하루 전 날짜가 찍힌다 — 보는 사람의 날짜로 쓴다
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 /** 여러 제품의 값을 " / " 로 이어 제품사양 한 줄로 만든다 */

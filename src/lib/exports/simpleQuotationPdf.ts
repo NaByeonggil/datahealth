@@ -36,7 +36,7 @@ interface QuotationLine {
   productName?: string;
 }
 
-interface QuotationData {
+export interface QuotationData {
   quotationNo: string;
   productName: string;
   customerName: string;
@@ -80,9 +80,19 @@ function escapeHtml(str: string): string {
 /** 값이 없으면 빈칸으로 둔다(양식상 손으로 채우는 칸이 많다) */
 const v = (s?: string | null) => escapeHtml(s || "");
 
-export function exportSimpleQuotationPdf(data: QuotationData) {
+/**
+ * 견적서 한 장의 HTML. 인쇄 창과 PDF 파일 생성(simpleQuotationPdfBlob.ts)이 같은 양식을 쓴다.
+ * autoPrint 가 false 면 인쇄 대화상자를 띄우는 스크립트를 넣지 않는다.
+ */
+export function buildSimpleQuotationHtml(
+  data: QuotationData,
+  options: { autoPrint: boolean } = { autoPrint: true }
+): string {
+  // toISOString 은 UTC 날짜라 오전 9시 전에는 하루 전 날짜가 찍힌다 — 보는 사람의 날짜로 쓴다
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
   const today =
-    data.quotationDate || new Date().toISOString().slice(0, 10);
+    data.quotationDate || `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   const co = data.company ?? DEFAULT_COMPANY_INFO;
 
   const lines = data.lines ?? [];
@@ -226,12 +236,17 @@ export function exportSimpleQuotationPdf(data: QuotationData) {
   <div class="box">${escapeHtml(data.note || "")}</div>
 </div>
 
-<script>
+${options.autoPrint ? `<script>
   window.onafterprint = function() { window.close(); };
   window.print();
-</script>
+</script>` : ""}
 </body></html>`;
 
+  return html;
+}
+
+export function exportSimpleQuotationPdf(data: QuotationData) {
+  const html = buildSimpleQuotationHtml(data);
   const printWindow = window.open("", "_blank");
   if (!printWindow) {
     alert("팝업이 차단되었습니다. 팝업 차단을 해제해 주세요.");

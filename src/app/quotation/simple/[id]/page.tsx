@@ -11,7 +11,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, FileDown, Pencil, Trash2, Copy } from "lucide-react";
+import { ArrowLeft, FileDown, Pencil, Trash2, Copy, Send } from "lucide-react";
 import { toast } from "sonner";
 import { CompanyInfoType } from "@/lib/company/supplier";
 import {
@@ -25,6 +25,7 @@ import { exportSimpleQuotationExcel } from "@/lib/exports/simpleQuotationExcel";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import DuplicateQuotationDialog, { DuplicateTarget } from "@/components/quotation/DuplicateQuotationDialog";
 import PriceDriftBanner from "@/components/quotation/PriceDriftBanner";
+import SendToInquiryDialog from "@/components/quotation/simple/SendToInquiryDialog";
 import { useCurrentUser } from "@/lib/auth/useCurrentUser";
 import { canViewCost } from "@/lib/auth/roles";
 
@@ -32,6 +33,9 @@ import { canViewCost } from "@/lib/auth/roles";
 interface Quotation extends SavedQuotation {
   id: string;
   createdAt: string;
+  /** 이 견적서가 답하는 홈페이지 문의 ID */
+  inquiryExternalId?: string | null;
+  sentToInquiryAt?: string | null;
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString("ko-KR");
@@ -54,6 +58,8 @@ export default function SimpleQuotationDetail() {
   /** 복제 대상 — 수신처만 바꿔 다시 낼 때 */
   const [duplicateTarget, setDuplicateTarget] = useState<DuplicateTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
+  /** 홈페이지 문의에 견적서 보내기 다이얼로그 */
+  const [sendOpen, setSendOpen] = useState(false);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -153,6 +159,12 @@ export default function SimpleQuotationDetail() {
           <ArrowLeft className="h-4 w-4 mr-1" />목록
         </Button>
         <h2 className="text-xl font-bold flex-1">일반견적서 상세</h2>
+        {data.inquiryExternalId && (
+          <Button size="sm" onClick={() => setSendOpen(true)}>
+            <Send className="h-4 w-4 mr-1" />
+            {data.sentToInquiryAt ? "문의에 다시 보내기" : "홈페이지 문의에 보내기"}
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={handleExportPdf}>
           <FileDown className="h-4 w-4 mr-1" />PDF
         </Button>
@@ -176,6 +188,26 @@ export default function SimpleQuotationDetail() {
       </div>
 
       {showCost && <PriceDriftBanner type="simple" quotationId={String(id)} />}
+
+      {data.inquiryExternalId && (
+        <p className="text-sm text-muted-foreground">
+          홈페이지 문의에 답하는 견적서입니다.{" "}
+          {data.sentToInquiryAt
+            ? `${new Date(data.sentToInquiryAt).toLocaleString("ko-KR")} 에 문의 답글로 보냈습니다.`
+            : "아직 고객에게 보내지 않았습니다."}
+        </p>
+      )}
+      {data.inquiryExternalId && (
+        <SendToInquiryDialog
+          open={sendOpen}
+          onOpenChange={setSendOpen}
+          quotationId={String(id)}
+          quotationNo={data.quotationNo}
+          sentAt={data.sentToInquiryAt}
+          exportData={exportData}
+          onSent={(sentAt) => setData({ ...data, sentToInquiryAt: sentAt })}
+        />
+      )}
 
       <DuplicateQuotationDialog
         target={duplicateTarget}

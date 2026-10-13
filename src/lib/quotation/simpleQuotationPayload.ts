@@ -16,6 +16,8 @@ export interface SimpleQuotationBody {
   totalMaterialCost?: number;
   totalAmount?: number;
   note?: string | null;
+  /** 이 견적서가 답하는 홈페이지 문의 ID */
+  inquiryExternalId?: string | null;
   products?: ProductBody[];
 }
 
@@ -51,6 +53,7 @@ export function buildHeaderData(body: SimpleQuotationBody) {
     totalMaterialCost: body.totalMaterialCost || 0,
     totalAmount: body.totalAmount || 0,
     note: body.note || null,
+    inquiryExternalId: body.inquiryExternalId || null,
   };
 }
 
