@@ -99,10 +99,8 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
               new Date(inquiry.createdAt).toLocaleString("ko-KR"),
             ].filter(Boolean).join(" · ")}
           </div>
-          {inquiry.source === "public" && (
-            <div className="text-xs text-blue-700">
-              고객 접수 폼으로 들어온 문의 · 접수번호 {inquiry.receiptNo}
-            </div>
+          {inquiry.source === "factory" && (
+            <div className="text-xs text-blue-700">홈페이지 견적문의 게시판에서 들어온 문의</div>
           )}
         </CardHeader>
         <CardContent>
@@ -140,6 +138,14 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {extractedData.productType && <div><span className="text-muted-foreground">제형:</span> {extractedData.productType}</div>}
                   {extractedData.productionQty && <div><span className="text-muted-foreground">생산수량:</span> {extractedData.productionQty.toLocaleString()}개</div>}
+                  {extractedData.internalEstimate && (
+                    <div>
+                      <span className="text-muted-foreground">AI 추정 견적 (내부 참고):</span>{" "}
+                      총액 {Math.round(extractedData.internalEstimate.totalAmount).toLocaleString()}원 · 개당{" "}
+                      {Math.round(extractedData.internalEstimate.unitPrice).toLocaleString()}원 (VAT 별도,{" "}
+                      {extractedData.internalEstimate.productionQty.toLocaleString()}개 기준)
+                    </div>
+                  )}
                   {extractedData.missingInfo && extractedData.missingInfo.length > 0 && (
                     <div className="text-orange-600">
                       <span className="font-medium">누락 정보:</span> {extractedData.missingInfo.join(", ")}
@@ -166,15 +172,27 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
         </Card>
       )}
 
+      {/* 홈페이지 문의는 답변 창구가 홈페이지 관리자다 — 여기서 답하면 고객에게 가지 않는다 */}
+      {inquiry.source === "factory" && (
+        <Card>
+          <CardContent className="py-4 flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              이 문의의 답변은 홈페이지 관리자에서 등록합니다. 위 AI 분석과 답변 초안은 그쪽 문의 화면에도 표시됩니다.
+            </p>
+            {inquiry.factoryAdminUrl && (
+              <a href={inquiry.factoryAdminUrl} target="_blank" rel="noreferrer">
+                <Button variant="outline">홈페이지 관리자에서 열기</Button>
+              </a>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* 관리자 응답 */}
+      {inquiry.source !== "factory" && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">관리자 응답</CardTitle>
-          {inquiry.source === "public" && (
-            <p className="text-xs text-muted-foreground">
-              등록한 답변은 고객의 문의 조회 화면에 그대로 표시됩니다. AI 생성 답변은 고객에게 보이지 않습니다.
-            </p>
-          )}
         </CardHeader>
         <CardContent className="space-y-3">
           <Textarea
@@ -202,6 +220,7 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

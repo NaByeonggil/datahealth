@@ -695,13 +695,15 @@ model BoardInquiry {
   authorName      String
   authorEmail     String?
   authorPhone     String?
-  /// 고객사명 (고객 접수 폼)
+  /// 고객사명
   company         String?
-  /// 어디서 들어왔는가: internal(담당자 대리 등록) | public(고객 접수 폼)
+  /// 어디서 들어왔는가: internal(담당자 대리 등록) | factory(홈페이지 견적문의 게시판)
   source          String   @default("internal")
-  /// 고객에게 알려주는 접수번호 (HP-XXXX-XXXX). 이메일과 함께 조회 열쇠로 쓴다.
+  /// 홈페이지(factory) 쪽 문의 ID. 같은 문의가 두 번 넘어와도 한 건으로 유지한다.
+  externalId      String?  @unique
+  /// (사용 안 함) 자체 접수 폼 시절의 접수번호 — 고객 창구는 홈페이지로 일원화했다
   receiptNo       String?  @unique
-  /// 개인정보 수집·이용 동의 시각 (고객 접수 폼)
+  /// (사용 안 함) 자체 접수 폼 시절의 동의 시각
   consentAt       DateTime?
   status          String   @default("pending") // pending, ai_processing, ai_completed, human_review, responded, closed
   inquiryType     String?  // quotation, product, simple, spam, urgent

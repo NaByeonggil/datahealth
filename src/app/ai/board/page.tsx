@@ -44,7 +44,7 @@ export default function BoardPage() {
         </div>
         <div className="flex gap-2">
           <Link href="/inquiry" target="_blank">
-            <Button variant="outline" size="sm"><ExternalLink className="h-4 w-4 mr-1" />고객 접수 페이지</Button>
+            <Button variant="outline" size="sm"><ExternalLink className="h-4 w-4 mr-1" />홈페이지 문의 페이지</Button>
           </Link>
           <BoardMonitorToggle />
           <Link href="/ai/board/new">

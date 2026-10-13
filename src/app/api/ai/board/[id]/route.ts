@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { factorySiteUrl } from "@/lib/integration/factory";
 
 // GET: 문의 상세
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const inquiry = await prisma.boardInquiry.findUnique({ where: { id } });
   if (!inquiry) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(inquiry);
+  return NextResponse.json({
+    ...inquiry,
+    factoryAdminUrl:
+      inquiry.source === "factory" && inquiry.externalId
+        ? `${factorySiteUrl()}/admin/inquiries/${inquiry.externalId}`
+        : null,
+  });
 }
 
 // PUT: 문의 수정 (관리자 응답 등)

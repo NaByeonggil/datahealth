@@ -35,8 +35,10 @@ export interface BoardInquiryType {
   authorEmail?: string | null;
   authorPhone?: string | null;
   company?: string | null;
-  source?: "internal" | "public";
-  receiptNo?: string | null;
+  source?: "internal" | "factory";
+  externalId?: string | null;
+  /** 홈페이지 관리자의 이 문의 화면 (source 가 factory 일 때) */
+  factoryAdminUrl?: string | null;
   status: InquiryStatus;
   inquiryType?: InquiryType | null;
   priority: InquiryPriority;
@@ -99,6 +101,8 @@ export interface ExtractedInquiryData {
   packageUnit?: number;
   missingInfo?: string[];
   additionalNotes?: string;
+  /** AI 가 마스터 단가로 뽑은 추정 견적 — 내부 참고용, 고객·홈페이지로 나가지 않는다 */
+  internalEstimate?: { totalAmount: number; unitPrice: number; productionQty: number };
 }
 
 // 함수 호출 로그

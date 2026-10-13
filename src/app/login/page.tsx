@@ -14,7 +14,14 @@ function LoginForm() {
   const next = params.get("next") || "/";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // 홈페이지 관리자에서 자동 로그인으로 넘어오다 실패한 경우
+  const ssoError =
+    params.get("sso") === "unmapped"
+      ? "홈페이지 계정과 연결된 계정이 없습니다. 아이디로 로그인해주세요."
+      : params.get("sso")
+        ? "자동 로그인 링크가 만료됐습니다. 홈페이지 관리자에서 다시 열거나 아이디로 로그인해주세요."
+        : null;
+  const [error, setError] = useState<string | null>(ssoError);
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {

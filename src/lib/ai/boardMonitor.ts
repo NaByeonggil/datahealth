@@ -84,9 +84,14 @@ async function calculateQuotation(inquiryId: string, extractedData: ExtractedInq
     { relatedId: inquiryId }
   );
 
+  // 합산까지 간 경우에만 내부 참고용 숫자를 남긴다. 단가·이윤율 같은 세부는 남기지 않는다.
+  const quote = [...result.functionCalls].reverse().find((f) => f.name === "generate_quotation");
+  const summary = (quote?.result as { summary?: Record<string, number> } | undefined)?.summary;
+  if (!summary) return null;
   return {
-    content: result.finalContent,
-    functionCalls: result.functionCalls,
+    totalAmount: summary.totalAmount,
+    unitPrice: summary.unitPrice,
+    productionQty: summary.productionQty,
   };
 }
 
@@ -95,10 +100,9 @@ async function generateResponse(
   inquiryId: string,
   title: string,
   content: string,
-  extractedData: ExtractedInquiryData,
-  quotationResult?: unknown
+  extractedData: ExtractedInquiryData
 ): Promise<string> {
-  const prompt = getGenerateResponsePrompt(title, content, extractedData, quotationResult);
+  const prompt = getGenerateResponsePrompt(title, content, extractedData);
   const response = await chatCompletion({
     messages: [{ role: "user", content: prompt }],
     max_tokens: 1500,
@@ -138,9 +142,11 @@ export async function processInquiry(inquiryId: string): Promise<ProcessResult> 
     const extractedData = await extractInfo(inquiryId, inquiry.title, inquiry.content);
 
     // 3. 견적 계산 (견적 문의인 경우)
-    let quotationResult = null;
+    // 내부 참고용 추정 견적. 고객 답변 초안에는 넣지 않는다 — 초안을 쓰는 모델에게
+    // 단가나 금액을 보여주면, 하지 말라고 해도 답변에 옮겨 적는다.
+    let internalEstimate = null;
     if (classification.inquiryType === "quotation" || classification.inquiryType === "urgent") {
-      quotationResult = await calculateQuotation(inquiryId, extractedData);
+      internalEstimate = await calculateQuotation(inquiryId, extractedData);
     }
 
     // 4. 답변 생성 — 스팸에는 답하지 않는다
@@ -163,8 +169,7 @@ export async function processInquiry(inquiryId: string): Promise<ProcessResult> 
       inquiryId,
       inquiry.title,
       inquiry.content,
-      extractedData,
-      quotationResult
+      extractedData
     );
 
     // 5. 결과 저장
@@ -177,7 +182,7 @@ export async function processInquiry(inquiryId: string): Promise<ProcessResult> 
         inquiryType: classification.inquiryType,
         priority: classification.priority,
         confidence: classification.confidence,
-        extractedData: JSON.stringify(extractedData),
+        extractedData: JSON.stringify(internalEstimate ? { ...extractedData, internalEstimate } : extractedData),
         aiResponse,
         processedAt: new Date(),
       },

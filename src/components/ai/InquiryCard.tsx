@@ -42,8 +42,8 @@ export function InquiryCard({ inquiry }: InquiryCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-              {inquiry.source === "public" && (
-                <Badge variant="outline" className="border-blue-300 text-blue-700">고객 접수</Badge>
+              {inquiry.source === "factory" && (
+                <Badge variant="outline" className="border-blue-300 text-blue-700">홈페이지 문의</Badge>
               )}
               {inquiry.inquiryType && (
                 <Badge variant="outline">{TYPE_LABELS[inquiry.inquiryType] ?? inquiry.inquiryType}</Badge>

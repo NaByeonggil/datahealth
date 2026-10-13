@@ -23,8 +23,10 @@ export const config = {
 /** 로그인 없이 들어갈 수 있는 곳 */
 const PUBLIC_PATHS = [
   "/login", "/api/auth/login", "/api/auth/logout",
-  // 고객 문의 접수·조회 — 로그인 없이 쓴다. 여기 API 는 단가를 다루지 않는다.
-  "/inquiry", "/api/public",
+  // 고객 창구는 홈페이지로 일원화 — 옛 주소로 오면 홈페이지 문의 페이지로 보낸다
+  "/inquiry",
+  // 홈페이지(factory)와의 연동. 로그인 대신 공유 비밀키 서명으로 확인한다.
+  "/api/integration", "/api/auth/sso",
 ];
 
 /** 경로 앞부분 → 통과 조건. 위에서부터 먼저 걸리는 규칙을 쓴다. */
