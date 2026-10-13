@@ -1,12 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { rankTollingRates } from "@/lib/quotation/resolveTollingRate";
-import { toNumber } from "./args";
+import { normName, toNumber } from "./args";
 
 const BASIS_LABEL: Record<string, string> = {
   per_case: "케이스당",
   per_bottle: "병당",
   per_tablet: "정(캡슐)당",
 };
+
+/** 단어 순서와 괄호를 무시한 비교용 키 — "바이알(20ml)" 과 "20ml 바이알" 을 같게 본다 */
+const tokenKey = (v: string) =>
+  v.toLowerCase().split(/[\s()（）,/]+/).filter(Boolean).sort().join("|");
 
 /**
  * 제형별 가공비(임가공비) 조회.
@@ -21,10 +25,18 @@ export async function calculateProcessingCost(args: { productTypeName: string; p
     orderBy: { unitCost: "asc" },
   });
 
+  // 마스터에 같은 제형이 단어 순서만 달리 등록돼 있으면 그 이름으로 조회한다.
+  // 순위 규칙은 글자 순서까지 같아야 완전 일치로 쳐서, 표현에 따라 단가가 달라지기 때문이다.
+  const forms = [...new Set(rates.map((r) => r.formName))];
+  const lookupName =
+    forms.find((f) => normName(f) === normName(formName)) ??
+    forms.find((f) => tokenKey(f) === tokenKey(formName)) ??
+    formName;
+
   const ranked = formName
     ? rankTollingRates(
         rates.map((r) => ({ ...r, effectiveDate: r.effectiveDate.toISOString() })),
-        { formName, quantity: productionQty }
+        { formName: lookupName, quantity: productionQty }
       )
     : [];
 
@@ -41,9 +53,18 @@ export async function calculateProcessingCost(args: { productTypeName: string; p
       note: r.reasons.join(", ") || undefined,
     });
 
+    const isExact = normName(best.rate.formName) === normName(lookupName);
+
     return {
       found: true,
       source: "임가공비 단가",
+      requestedForm: formName,
+      matchedForm: best.rate.formName,
+      matchType: isExact ? "exact" : "partial",
+      // 요청한 제형과 이름이 딱 맞지 않으면 사람이 확인할 수 있게 알린다
+      matchNote: isExact
+        ? undefined
+        : `요청한 '${formName}'과 정확히 일치하는 제형이 없어 가장 가까운 '${best.rate.formName}' 단가를 썼습니다. 맞는지 사용자에게 확인하세요.`,
       selected: describe(best),
       calculation: {
         costPerUnit: best.rate.unitCost,

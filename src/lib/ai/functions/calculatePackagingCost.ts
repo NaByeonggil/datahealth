@@ -29,7 +29,7 @@ export async function calculatePackagingCost(args: { productionQty: number; pack
       message:
         matched.length > 1
           ? "해당하는 부자재 세트가 여러 개입니다. 사용자에게 어느 세트인지 확인하세요."
-          : "해당하는 부자재 세트가 없습니다. 사용자에게 부자재 구성을 확인하고, 모르면 부자재비를 0원으로 두고 '부자재비 별도'라고 안내하세요.",
+          : "세트를 특정하지 못했습니다. 아래 목록에 사용자가 말한 용기와 맞는 세트가 있으면 그 이름을 packagingName 에 넣어 다시 호출하세요. 맞는 세트가 없을 때만 부자재비를 0원으로 두고 '부자재비 별도'라고 안내하세요.",
       availableSets: pool.map((s) => ({ name: s.name, formName: s.formName, vendorName: s.vendorName })),
     };
   }

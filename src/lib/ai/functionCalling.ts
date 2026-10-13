@@ -37,11 +37,13 @@ export const functionDefinitions: FunctionDef[] = [
   },
   {
     name: "calculate_processing_cost",
-    description: "제형별 가공비(임가공비)를 조회합니다. 정제, 경질캅셀, 분말스틱, 액상스틱 등.",
+    description:
+      "제형·용기별 가공비(임가공비)를 조회합니다. 사용자가 말한 제형이나 용기 표현을 바꾸지 말고 그대로 넘깁니다. " +
+      "바이알·몰드병·파우치 같은 용기도 그대로 넘깁니다 (예: '20ml 바이알'을 '액상스틱'으로 바꾸지 않습니다).",
     parameters: {
       type: "object",
       properties: {
-        productTypeName: { type: "string", description: "제형명 (예: 정제, 경질캅셀, 분말스틱)" },
+        productTypeName: { type: "string", description: "사용자가 말한 제형 또는 용기 그대로 (예: 정제, 경질캅셀, 20ml 바이알, 액상 파우치)" },
         productionQty: { type: "number", description: "생산 수량 (개)" },
       },
       required: ["productTypeName", "productionQty"],
@@ -49,7 +51,9 @@ export const functionDefinitions: FunctionDef[] = [
   },
   {
     name: "calculate_packaging_cost",
-    description: "부자재 세트 기준으로 부자재비를 계산합니다. 세트를 모르면 packagingName 없이 호출해 세트 목록을 받습니다.",
+    description:
+      "부자재 세트 기준으로 부자재비를 계산합니다. 사용자가 용기를 말했으면(예: 20ml 바이알) packagingName 에 그대로 넣습니다. " +
+      "용기를 전혀 모를 때만 packagingName 없이 호출해 세트 목록을 받습니다.",
     parameters: {
       type: "object",
       properties: {
