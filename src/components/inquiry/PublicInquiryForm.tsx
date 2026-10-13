@@ -132,7 +132,7 @@ export function PublicInquiryForm({ companyName }: { companyName: string }) {
                   <p className="font-medium text-foreground">개인정보 수집 · 이용 안내</p>
                   <p>수집 항목: 이름, 회사명, 이메일, 연락처, 문의 내용</p>
                   <p>이용 목적: 문의 확인 및 답변</p>
-                  <p>보유 기간: 문의 처리 완료 후 1년</p>
+                  <p>보유 기간: 문의 처리 완료 후 3년</p>
                   <label className="flex items-center gap-2 pt-1 text-sm text-foreground">
                     <input type="checkbox" className="rounded" checked={consent}
                       onChange={(e) => setConsent(e.target.checked)} />
