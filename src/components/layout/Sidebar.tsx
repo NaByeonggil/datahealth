@@ -29,6 +29,7 @@ import {
   Bot,
   MessageSquare,
   ClipboardList,
+  Globe,
   BarChart3,
   Wrench,
   BookOpen,
@@ -96,6 +97,7 @@ const menuItems: MenuItem[] = [
     children: [
       { label: "AI 견적 채팅", href: "/ai/chat", icon: <MessageSquare className="h-4 w-4" /> },
       { label: "문의 게시판", href: "/ai/board", icon: <ClipboardList className="h-4 w-4" /> },
+      { label: "홈페이지 문의", href: "/ai/board/homepage", icon: <Globe className="h-4 w-4" /> },
       { label: "AI 대시보드", href: "/ai/dashboard", icon: <BarChart3 className="h-4 w-4" /> },
       { label: "AI 설정", href: "/ai/settings", icon: <Wrench className="h-4 w-4" /> },
     ],
@@ -155,6 +157,8 @@ export default function Sidebar({ user, children }: { user: SidebarUser; childre
   const isActive = (href?: string) => {
     if (!href) return false;
     if (href === "/") return pathname === "/";
+    // /ai/board 아래에 /ai/board/homepage 가 따로 메뉴로 있다 — 더 깊은 메뉴에 걸리면 그쪽만 켠다
+    if (href === "/ai/board" && pathname.startsWith("/ai/board/homepage")) return false;
     return pathname.startsWith(href);
   };
 
@@ -248,7 +252,8 @@ export default function Sidebar({ user, children }: { user: SidebarUser; childre
             {pathname === "/quotation" && "전체 견적서"}
             {pathname.startsWith("/master") && "마스터관리"}
             {pathname === "/ai/chat" && "AI 견적 채팅"}
-            {pathname.startsWith("/ai/board") && "문의 게시판"}
+            {pathname.startsWith("/ai/board/homepage") && "홈페이지 문의"}
+            {pathname.startsWith("/ai/board") && !pathname.startsWith("/ai/board/homepage") && "문의 게시판"}
             {pathname === "/ai/dashboard" && "AI 대시보드"}
             {pathname === "/ai/settings" && "AI 설정"}
             {pathname.startsWith("/import") && "임포트센터"}

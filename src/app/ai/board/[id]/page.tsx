@@ -172,18 +172,25 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
         </Card>
       )}
 
-      {/* 홈페이지 문의는 답변 창구가 홈페이지 관리자다 — 여기서 답하면 고객에게 가지 않는다 */}
+      {/* 홈페이지 문의의 답변은 홈페이지 게시판에 달려야 고객에게 간다 — 답글 화면으로 보낸다 */}
       {inquiry.source === "factory" && (
         <Card>
           <CardContent className="py-4 flex items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              이 문의의 답변은 홈페이지 관리자에서 등록합니다. 위 AI 분석과 답변 초안은 그쪽 문의 화면에도 표시됩니다.
+              이 문의의 답변은 홈페이지 게시판에 등록됩니다. 위 AI 답변 초안은 답변 화면에서 불러올 수 있습니다.
             </p>
-            {inquiry.factoryAdminUrl && (
-              <a href={inquiry.factoryAdminUrl} target="_blank" rel="noreferrer">
-                <Button variant="outline">홈페이지 관리자에서 열기</Button>
-              </a>
-            )}
+            <div className="flex gap-2 shrink-0">
+              {inquiry.factoryAdminUrl && (
+                <a href={inquiry.factoryAdminUrl} target="_blank" rel="noreferrer">
+                  <Button variant="outline">홈페이지 관리자에서 열기</Button>
+                </a>
+              )}
+              {inquiry.externalId && (
+                <Link href={`/ai/board/homepage/${inquiry.externalId}#reply`}>
+                  <Button><Send className="h-4 w-4 mr-1" />답변 달기</Button>
+                </Link>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

@@ -6,7 +6,7 @@ import { InquiryCard } from "@/components/ai/InquiryCard";
 import { BoardMonitorToggle } from "@/components/ai/BoardMonitorToggle";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ExternalLink, Plus } from "lucide-react";
+import { ExternalLink, Globe, Plus } from "lucide-react";
 
 const STATUS_OPTIONS = [
   { value: "", label: "전체" },
@@ -45,6 +45,9 @@ export default function BoardPage() {
         <div className="flex gap-2">
           <Link href="/inquiry" target="_blank">
             <Button variant="outline" size="sm"><ExternalLink className="h-4 w-4 mr-1" />홈페이지 문의 페이지</Button>
+          </Link>
+          <Link href="/ai/board/homepage">
+            <Button variant="outline" size="sm"><Globe className="h-4 w-4 mr-1" />홈페이지 문의 · 답변 달기</Button>
           </Link>
           <BoardMonitorToggle />
           <Link href="/ai/board/new">

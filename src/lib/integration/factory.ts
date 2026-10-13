@@ -122,3 +122,36 @@ export function mappedUsername(email: string): string | null {
   }
   return null;
 }
+
+// ── 홈페이지 게시판 읽기 ────────────────────────────────────
+
+/** 이 화면에서 보여주는 홈페이지 게시판 */
+export const FACTORY_BOARDS = ["food", "pet"] as const;
+export type FactoryBoard = (typeof FACTORY_BOARDS)[number];
+
+/** 홈페이지가 쓰는 문의 ID 모양(cuid) — 경로에 그대로 넣기 전에 확인한다 */
+export const isFactoryInquiryId = (id: string) => /^[a-z0-9]{10,40}$/.test(id);
+
+/**
+ * 홈페이지 연동 API 를 불러 JSON 을 받는다.
+ * 실패하면 화면에 그대로 보여줄 문구와 넘겨줄 상태 코드를 돌려준다.
+ */
+export async function fetchFactoryJson<T>(
+  path: string,
+  body: unknown
+): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string }> {
+  if (!integrationConfigured()) {
+    return { ok: false, status: 503, error: "홈페이지 연동이 설정되지 않았습니다 (INTEGRATION_SECRET)." };
+  }
+  const res = await callFactory(path, JSON.stringify(body));
+  if (!res) return { ok: false, status: 502, error: "홈페이지에 연결하지 못했습니다. 잠시 후 다시 시도해주세요." };
+  const data = await res.json().catch(() => null);
+  if (!res.ok || data === null) {
+    return {
+      ok: false,
+      status: res.status === 404 ? 404 : 502,
+      error: data?.error || `홈페이지가 요청을 받지 않았습니다 (${res.status}).`,
+    };
+  }
+  return { ok: true, data: data as T };
+}
