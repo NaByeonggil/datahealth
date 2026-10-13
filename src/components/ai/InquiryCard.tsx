@@ -42,6 +42,9 @@ export function InquiryCard({ inquiry }: InquiryCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+              {inquiry.source === "public" && (
+                <Badge variant="outline" className="border-blue-300 text-blue-700">고객 접수</Badge>
+              )}
               {inquiry.inquiryType && (
                 <Badge variant="outline">{TYPE_LABELS[inquiry.inquiryType] ?? inquiry.inquiryType}</Badge>
               )}
@@ -53,7 +56,9 @@ export function InquiryCard({ inquiry }: InquiryCardProps) {
             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{inquiry.content}</p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-xs text-muted-foreground">{inquiry.authorName}</p>
+            <p className="text-xs text-muted-foreground">
+              {inquiry.authorName}{inquiry.company ? ` · ${inquiry.company}` : ""}
+            </p>
             <p className="text-xs text-muted-foreground">
               {new Date(inquiry.createdAt).toLocaleDateString("ko-KR")}
             </p>

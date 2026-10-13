@@ -34,6 +34,9 @@ export interface BoardInquiryType {
   authorName: string;
   authorEmail?: string | null;
   authorPhone?: string | null;
+  company?: string | null;
+  source?: "internal" | "public";
+  receiptNo?: string | null;
   status: InquiryStatus;
   inquiryType?: InquiryType | null;
   priority: InquiryPriority;

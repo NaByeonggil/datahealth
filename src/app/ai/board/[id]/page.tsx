@@ -91,8 +91,19 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
           <div className="text-sm text-muted-foreground">
-            {inquiry.authorName} · {inquiry.authorEmail ?? ""} · {new Date(inquiry.createdAt).toLocaleString("ko-KR")}
+            {[
+              inquiry.authorName,
+              inquiry.company,
+              inquiry.authorEmail,
+              inquiry.authorPhone,
+              new Date(inquiry.createdAt).toLocaleString("ko-KR"),
+            ].filter(Boolean).join(" · ")}
           </div>
+          {inquiry.source === "public" && (
+            <div className="text-xs text-blue-700">
+              고객 접수 폼으로 들어온 문의 · 접수번호 {inquiry.receiptNo}
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <div className="whitespace-pre-wrap text-sm">{inquiry.content}</div>
@@ -159,6 +170,11 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
       <Card>
         <CardHeader>
           <CardTitle className="text-base">관리자 응답</CardTitle>
+          {inquiry.source === "public" && (
+            <p className="text-xs text-muted-foreground">
+              등록한 답변은 고객의 문의 조회 화면에 그대로 표시됩니다. AI 생성 답변은 고객에게 보이지 않습니다.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           <Textarea
@@ -172,6 +188,11 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
               <Button variant="outline" onClick={handleProcess} disabled={processing}>
                 {processing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Bot className="h-4 w-4 mr-1" />}
                 AI 처리 실행
+              </Button>
+            )}
+            {inquiry.aiResponse && !inquiry.aiResponse.startsWith("AI 처리 중 오류") && inquiry.inquiryType !== "spam" && (
+              <Button variant="outline" onClick={() => setAdminResponse(inquiry.aiResponse ?? "")}>
+                <Bot className="h-4 w-4 mr-1" />AI 답변 불러오기
               </Button>
             )}
             <Button onClick={handleAdminResponse} disabled={responding || !adminResponse.trim()}>

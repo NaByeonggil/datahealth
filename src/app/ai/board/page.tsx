@@ -6,7 +6,7 @@ import { InquiryCard } from "@/components/ai/InquiryCard";
 import { BoardMonitorToggle } from "@/components/ai/BoardMonitorToggle";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { ExternalLink, Plus } from "lucide-react";
 
 const STATUS_OPTIONS = [
   { value: "", label: "전체" },
@@ -43,6 +43,9 @@ export default function BoardPage() {
           <p className="text-muted-foreground mt-1">고객 문의를 AI가 자동 분류하고 답변합니다.</p>
         </div>
         <div className="flex gap-2">
+          <Link href="/inquiry" target="_blank">
+            <Button variant="outline" size="sm"><ExternalLink className="h-4 w-4 mr-1" />고객 접수 페이지</Button>
+          </Link>
           <BoardMonitorToggle />
           <Link href="/ai/board/new">
             <Button><Plus className="h-4 w-4 mr-1" />새 문의</Button>

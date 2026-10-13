@@ -695,6 +695,14 @@ model BoardInquiry {
   authorName      String
   authorEmail     String?
   authorPhone     String?
+  /// 고객사명 (고객 접수 폼)
+  company         String?
+  /// 어디서 들어왔는가: internal(담당자 대리 등록) | public(고객 접수 폼)
+  source          String   @default("internal")
+  /// 고객에게 알려주는 접수번호 (HP-XXXX-XXXX). 이메일과 함께 조회 열쇠로 쓴다.
+  receiptNo       String?  @unique
+  /// 개인정보 수집·이용 동의 시각 (고객 접수 폼)
+  consentAt       DateTime?
   status          String   @default("pending") // pending, ai_processing, ai_completed, human_review, responded, closed
   inquiryType     String?  // quotation, product, simple, spam, urgent
   priority        String   @default("normal") // low, normal, high, urgent

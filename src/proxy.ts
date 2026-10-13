@@ -21,7 +21,11 @@ export const config = {
 };
 
 /** 로그인 없이 들어갈 수 있는 곳 */
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout"];
+const PUBLIC_PATHS = [
+  "/login", "/api/auth/login", "/api/auth/logout",
+  // 고객 문의 접수·조회 — 로그인 없이 쓴다. 여기 API 는 단가를 다루지 않는다.
+  "/inquiry", "/api/public",
+];
 
 /** 경로 앞부분 → 통과 조건. 위에서부터 먼저 걸리는 규칙을 쓴다. */
 const RULES: { prefix: string; allow: (role: string) => boolean; label: string }[] = [

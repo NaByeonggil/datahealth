@@ -123,11 +123,12 @@ export async function processInquiry(inquiryId: string): Promise<ProcessResult> 
   const inquiry = await prisma.boardInquiry.findUnique({ where: { id: inquiryId } });
   if (!inquiry) throw new Error("문의를 찾을 수 없습니다.");
 
-  // 처리 중 상태로 변경
-  await prisma.boardInquiry.update({
-    where: { id: inquiryId },
+  // 처리 중 상태로 변경 — 조건부로 잡아, 접수 직후 처리와 폴링이 같은 문의를 두 번 돌리지 않게 한다
+  const claimed = await prisma.boardInquiry.updateMany({
+    where: { id: inquiryId, status: { in: ["pending", "human_review"] } },
     data: { status: "ai_processing" },
   });
+  if (claimed.count === 0) return { ok: false, error: "이미 처리 중이거나 처리가 끝난 문의입니다." };
 
   try {
     // 1. 분류
@@ -220,7 +221,15 @@ export async function processAllPending(): Promise<{ processed: number; errors: 
   }
 }
 
+/** 처리 도중 서버가 내려가 "AI 처리중"에 멈춘 문의를 되살리는 기준 */
+const STALE_PROCESSING_MS = 10 * 60 * 1000;
+
 async function runPending(): Promise<{ processed: number; errors: number; offline?: boolean }> {
+  await prisma.boardInquiry.updateMany({
+    where: { status: "ai_processing", updatedAt: { lt: new Date(Date.now() - STALE_PROCESSING_MS) } },
+    data: { status: "pending" },
+  });
+
   const pendingInquiries = await prisma.boardInquiry.findMany({
     where: { status: "pending" },
     orderBy: { createdAt: "asc" },
