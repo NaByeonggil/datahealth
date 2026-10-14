@@ -2,7 +2,7 @@
  * 문의 견적 초안의 기본 조건
  *
  * 고객이 따로 적지 않은 항목은 아래 기준으로 초안을 잡는다.
- *   포장단위   30정 / 30포
+ *   포장단위   30정 / 30포 (캡슐도 30정)
  *   수량       1,000개 이하(미기재 포함)는 최소 주문수량(MOQ) 1,000개
  *   인증 여부  추후 결정
  *   포장 디자인·부자재 사양은 항상 별도
@@ -31,8 +31,10 @@ export function applyQuoteDefaults(data: ExtractedInquiryData): ExtractedInquiry
   const packageUnit = packageUnitAssumed ? DEFAULT_PACKAGE_UNIT : givenUnit;
 
   const productType = (data.productType ?? "").trim();
+  // 캡슐도 견적 기준에서는 "정"으로 센다
+  const countUnit = packageCountUnit(null, productType).replace("캡슐", "정");
   const packageUnitLabel = productType
-    ? `${packageUnit}${packageCountUnit(null, productType)}`
+    ? `${packageUnit}${countUnit}`
     : `${packageUnit}정(또는 ${packageUnit}포)`;
 
   const requestedQty = prev ? prev.requestedQty : toNumber(data.productionQty) || undefined;
