@@ -99,6 +99,20 @@ export interface ExtractedInquiryData {
   productType?: string;
   productionQty?: number;
   packageUnit?: number;
+  /** 고객이 요청한 인증 (HACCP, GMP, 유기농 …). 언급이 없으면 "추후 결정" */
+  certification?: string;
+  /** 견적 초안에 적용한 기본 조건 — lib/ai/inquiryDefaults */
+  quoteBasis?: {
+    /** "30정" / "30포" */
+    packageUnitLabel: string;
+    /** 고객이 포장단위를 적지 않아 기본값을 썼는가 */
+    packageUnitAssumed: boolean;
+    /** 고객이 적은 수량 (없으면 비움) */
+    requestedQty?: number;
+    /** 최소 주문수량으로 올려 잡았는가 */
+    moqApplied: boolean;
+    packagingNote: string;
+  };
   missingInfo?: string[];
   additionalNotes?: string;
   /** AI 가 마스터 단가로 뽑은 추정 견적 — 내부 참고용, 고객·홈페이지로 나가지 않는다 */

@@ -28,6 +28,7 @@ import { exportSimpleQuotationExcel } from "@/lib/exports/simpleQuotationExcel";
 import FormulationTemplateDialog from "@/components/quotation/simple/FormulationTemplateDialog";
 import SaveFormulationTemplateDialog from "@/components/quotation/simple/SaveFormulationTemplateDialog";
 import { FormulationTemplateLike, ResolvedTemplateItem } from "@/lib/quotation/formulationTemplate";
+import { applyQuoteDefaults, quoteBasisLines } from "@/lib/ai/inquiryDefaults";
 
 const fmt = (n: number) => n.toLocaleString("ko-KR");
 
@@ -60,6 +61,8 @@ export default function SimpleQuotationForm({ quotationId, inquiryId }: SimpleQu
   const [templateSaveFor, setTemplateSaveFor] = useState<number | null>(null);
 
   const [inquiry, setInquiry] = useState<InquiryPrefill | null>(null);
+  /** 문의 견적의 기본 조건(포장단위·MOQ·부자재 별도·인증) — 특기사항 끝에 붙인다 */
+  const [inquiryTerms, setInquiryTerms] = useState("");
 
   const { load, reset, setField } = store;
   useEffect(() => {
@@ -77,6 +80,10 @@ export default function SimpleQuotationForm({ quotationId, inquiryId }: SimpleQu
           setField("customerContact", q.customer?.manager ?? q.authorName ?? "");
           setField("customerPhone", q.customer?.contact ?? "");
           setInquiry({ title: q.title, content: q.content, factoryAdminUrl: q.factoryAdminUrl });
+          // 고객이 적지 않은 조건은 기본값(30정/30포, MOQ 1,000개, 인증 추후 결정)으로 초안을 잡는다
+          const basis = applyQuoteDefaults(q.extracted ?? {});
+          store.updateLine(0, 0, "packageUnit", basis.packageUnit);
+          setInquiryTerms(quoteBasisLines(basis).map((l) => `※ ${l}`).join("\n"));
         })
         .catch(() => toast.error("홈페이지 문의 정보를 불러오지 못했습니다. 고객 정보를 직접 입력해주세요."));
       return;
@@ -122,13 +129,16 @@ export default function SimpleQuotationForm({ quotationId, inquiryId }: SimpleQu
   /** 식품유형·제형·배합에 맞춰 조립한 기본 특기사항 */
   const defaultNote = useMemo(
     () =>
-      buildQuotationNote(noteTemplates, {
-        foodType: store.foodType,
-        products: store.products.map((p) => ({
-          name: p.name, formCode: p.productFormCode, typeName: p.productTypeName, items: p.items,
-        })),
-      }),
-    [noteTemplates, store.foodType, store.products]
+      [
+        buildQuotationNote(noteTemplates, {
+          foodType: store.foodType,
+          products: store.products.map((p) => ({
+            name: p.name, formCode: p.productFormCode, typeName: p.productTypeName, items: p.items,
+          })),
+        }),
+        inquiryTerms,
+      ].filter(Boolean).join("\n"),
+    [noteTemplates, store.foodType, store.products, inquiryTerms]
   );
   /** 직전에 자동으로 넣은 문구 — 사용자가 손댔는지 판단하는 기준 */
   const lastAutoNote = useRef("");

@@ -5,6 +5,7 @@ import { getClassifyInquiryPrompt } from "./prompts/classifyInquiry";
 import { getExtractInfoPrompt } from "./prompts/extractInfo";
 import { getGenerateResponsePrompt } from "./prompts/generateResponse";
 import { CHAT_SYSTEM_PROMPT } from "./prompts/chatSystem";
+import { applyQuoteDefaults } from "./inquiryDefaults";
 import type { ExtractedInquiryData } from "@/types/ai";
 
 // JSON 파싱 헬퍼
@@ -54,14 +55,16 @@ async function extractInfo(inquiryId: string, title: string, content: string): P
   });
 
   const parsed = parseJsonResponse(response.content ?? "");
-  return {
+  // 고객이 적지 않은 포장단위·수량·인증 여부는 기본 조건으로 채운다
+  return applyQuoteDefaults({
     materials: (parsed?.materials as ExtractedInquiryData["materials"]) ?? [],
     productType: (parsed?.productType as string) ?? undefined,
     productionQty: (parsed?.productionQty as number) ?? undefined,
     packageUnit: (parsed?.packageUnit as number) ?? undefined,
+    certification: (parsed?.certification as string) ?? undefined,
     missingInfo: (parsed?.missingInfo as string[]) ?? [],
     additionalNotes: (parsed?.additionalNotes as string) ?? undefined,
-  };
+  });
 }
 
 // 3단계: 견적 문의 시 Function Calling으로 비용 계산
@@ -72,7 +75,8 @@ async function calculateQuotation(inquiryId: string, extractedData: ExtractedInq
 - 원료: ${JSON.stringify(extractedData.materials)}
 - 제형: ${extractedData.productType ?? "미지정"}
 - 생산수량: ${extractedData.productionQty ?? "미지정"}
-- 포장단위: ${extractedData.packageUnit ?? "미지정"}
+- 포장단위: ${extractedData.quoteBasis?.packageUnitLabel ?? extractedData.packageUnit ?? "미지정"}
+- 포장 디자인·부자재 사양: 별도 (부자재비는 0원으로 두고 calculate_packaging_cost 는 호출하지 않습니다)
 
 필요한 함수를 순서대로 호출하여 견적을 계산해주세요.`;
 

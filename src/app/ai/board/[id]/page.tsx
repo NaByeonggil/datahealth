@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Bot, Loader2, Send } from "lucide-react";
 import Link from "next/link";
 import type { BoardInquiryType, ExtractedInquiryData } from "@/types/ai";
+import { quoteBasisLines } from "@/lib/ai/inquiryDefaults";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "대기중", ai_processing: "AI 처리중", ai_completed: "AI 완료",
@@ -137,7 +138,16 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   )}
                   {extractedData.productType && <div><span className="text-muted-foreground">제형:</span> {extractedData.productType}</div>}
-                  {extractedData.productionQty && <div><span className="text-muted-foreground">생산수량:</span> {extractedData.productionQty.toLocaleString()}개</div>}
+                  {extractedData.quoteBasis ? (
+                    <div>
+                      <span className="text-muted-foreground">견적 기준:</span>
+                      <ul className="list-disc pl-5">
+                        {quoteBasisLines(extractedData).map((line) => <li key={line}>{line}</li>)}
+                      </ul>
+                    </div>
+                  ) : (
+                    extractedData.productionQty && <div><span className="text-muted-foreground">생산수량:</span> {extractedData.productionQty.toLocaleString()}개</div>
+                  )}
                   {extractedData.internalEstimate && (
                     <div>
                       <span className="text-muted-foreground">AI 추정 견적 (내부 참고):</span>{" "}

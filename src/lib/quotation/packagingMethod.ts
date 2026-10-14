@@ -71,6 +71,11 @@ export function isStickForm(formCode?: string | null, typeName?: string | null):
   return !s.bottled && s.unit === "포";
 }
 
+/** 낱개 단위 명칭 — 정 / 캡슐 / 포 / 병 */
+export function packageCountUnit(formCode?: string | null, typeName?: string | null): string {
+  return resolveShape(formCode, typeName, null).unit;
+}
+
 /** 포장단위 → "단상자*병*30정" / "단상자*30포" */
 export function buildPackagingMethod(
   packageUnit: number,
