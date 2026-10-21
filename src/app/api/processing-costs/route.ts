@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
     where,
     include: { productType: true },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    // 엑셀 출력은 전체 이력을 받는다
+    take: searchParams.get("all") === "true" ? undefined : 50,
   });
   return NextResponse.json(data);
 }

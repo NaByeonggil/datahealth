@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,9 +42,11 @@ interface Props {
   fields: FieldDef[];
   searchPlaceholder?: string;
   dataKey?: string;
+  /** 제목 줄 오른쪽, 등록 버튼 앞에 놓을 버튼 (엑셀 출력 등) — 현재 검색어를 받는다 */
+  headerActions?: (search: string) => ReactNode;
 }
 
-export default function MasterCrudPage({ title, apiUrl, columns, fields, searchPlaceholder, dataKey }: Props) {
+export default function MasterCrudPage({ title, apiUrl, columns, fields, searchPlaceholder, dataKey, headerActions }: Props) {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -132,7 +134,10 @@ export default function MasterCrudPage({ title, apiUrl, columns, fields, searchP
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">{title}</h2>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />새로 등록</Button>
+        <div className="flex gap-2">
+          {headerActions?.(search)}
+          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />새로 등록</Button>
+        </div>
       </div>
 
       {searchPlaceholder && (

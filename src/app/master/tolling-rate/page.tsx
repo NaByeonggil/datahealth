@@ -1,6 +1,8 @@
 "use client";
 
 import MasterCrudPage from "@/components/master/MasterCrudPage";
+import ExcelExportButton from "@/components/master/ExcelExportButton";
+import { exportTollingRates } from "@/lib/exports/masterExcel";
 
 const fmt = (v: unknown) => (v == null ? "-" : Number(v).toLocaleString("ko-KR"));
 
@@ -10,6 +12,7 @@ export default function TollingRatePage() {
       title="임가공비 단가"
       apiUrl="/api/tolling/rates"
       searchPlaceholder="제형, 업체, 규격 검색"
+      headerActions={(search) => <ExcelExportButton onExport={() => exportTollingRates(search)} />}
       columns={[
         { key: "vendorName", label: "업체" },
         { key: "formName", label: "제형/유형" },

@@ -19,6 +19,8 @@ import { Plus, Pencil, Trash2, Search, Columns3, ChevronsLeftRight, ChevronLeft,
 import { toast } from "sonner";
 import MaterialCatalogTable from "@/components/master/MaterialCatalogTable";
 import MaterialPriceHistoryDialog from "@/components/master/MaterialPriceHistoryDialog";
+import ExcelExportButton from "@/components/master/ExcelExportButton";
+import { exportMaterials } from "@/lib/exports/masterExcel";
 
 interface Supplier { id: string; code: string; name: string; }
 interface Material {
@@ -136,6 +138,7 @@ export default function MaterialPage() {
               {expanded ? <Columns3 className="h-4 w-4 mr-1" /> : <ChevronsLeftRight className="h-4 w-4 mr-1" />}
               {expanded ? "기본 보기" : "확장 보기"}
             </Button>
+            <ExcelExportButton onExport={() => exportMaterials({ supplierId: filterSupplier, search })} />
             <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />새로 등록</Button>
           </div>
         )}

@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import ExcelExportButton from "@/components/master/ExcelExportButton";
+import { exportPackagingSets } from "@/lib/exports/masterExcel";
 
 interface SetItem {
   id?: string;
@@ -131,7 +133,10 @@ export default function PackagingSetPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">부자재 세트</h2>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" />세트 등록</Button>
+        <div className="flex gap-2">
+          <ExcelExportButton onExport={() => exportPackagingSets(search)} />
+          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" />세트 등록</Button>
+        </div>
       </div>
 
       <div className="flex gap-2 max-w-md">

@@ -13,6 +13,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import ExcelExportButton from "@/components/master/ExcelExportButton";
+import { exportProcessingCosts } from "@/lib/exports/masterExcel";
 
 interface ProductType {
   id: string; code: string; name: string; processingCost: number;
@@ -64,7 +66,10 @@ export default function ProcessingCostPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">가공비 관리</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">가공비 관리</h2>
+        <ExcelExportButton onExport={exportProcessingCosts} />
+      </div>
 
       <Card>
         <CardHeader><CardTitle>현재 가공비 설정</CardTitle></CardHeader>
