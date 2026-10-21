@@ -5,6 +5,7 @@ import { getMaterialPrice } from "./functions/getMaterialPrice";
 import { calculateProcessingCost } from "./functions/calculateProcessingCost";
 import { calculatePackagingCost } from "./functions/calculatePackagingCost";
 import { generateQuotation } from "./functions/generateQuotation";
+import { searchQuotations, getQuotation } from "./functions/quotations";
 import type { FunctionCallLog } from "@/types/ai";
 
 /** 도구 결과를 모델에 돌려줄 때의 상한. 로컬 모델은 컨텍스트가 작다. */
@@ -91,6 +92,31 @@ export const functionDefinitions: FunctionDef[] = [
       required: ["productName", "materialCosts", "processingCostPerUnit", "productionQty"],
     },
   },
+  {
+    name: "search_quotations",
+    description: "저장된 견적서(일반견적서·상세견적서)를 견적번호·고객사명·제품명으로 찾습니다. 최근 것부터 돌려줍니다.",
+    parameters: {
+      type: "object",
+      properties: {
+        keyword: { type: "string", description: "견적번호(SQ…/DQ…), 고객사명 또는 제품명. 비우면 최근 견적서" },
+        type: { type: "string", enum: ["simple", "detailed"], description: "simple=일반견적서, detailed=상세견적서. 비우면 둘 다" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_quotation",
+    description:
+      "견적번호 하나의 내용(배합·포장옵션·원가·금액·특기사항)을 가져옵니다. 일반견적서는 setCount 를 주면 세트수를 바꿔 다시 계산합니다(저장된 견적서는 바뀌지 않음).",
+    parameters: {
+      type: "object",
+      properties: {
+        quotationNo: { type: "string", description: "견적번호 (예: SQ261014-001, DQ261014-001)" },
+        setCount: { type: "number", description: "일반견적서에서 바꿔 볼 세트수(박스 수량). 상세견적서에는 쓰지 않습니다" },
+      },
+      required: ["quotationNo"],
+    },
+  },
 ];
 
 // 함수 실행기
@@ -100,6 +126,8 @@ const functionExecutors: Record<string, (args: Record<string, unknown>) => Promi
   calculate_processing_cost: (args) => calculateProcessingCost(args as { productTypeName: string; productionQty: number }),
   calculate_packaging_cost: (args) => calculatePackagingCost(args as { productionQty: number; packagingName?: string }),
   generate_quotation: (args) => generateQuotation(args as Parameters<typeof generateQuotation>[0]),
+  search_quotations: (args) => searchQuotations(args as { keyword?: string; type?: string }),
+  get_quotation: (args) => getQuotation(args as { quotationNo: string; setCount?: number }),
 };
 
 function parseArgs(argsJson: string): Record<string, unknown> | null {
