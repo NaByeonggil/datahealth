@@ -40,9 +40,9 @@ async function main() {
     {
       providerName: "llama_5060ti",
       displayName: "Gemma (RTX 5060 Ti)",
-      baseUrl: process.env.AI_LLAMA_5060TI_URL || "http://192.168.0.20:8080/v1",
+      baseUrl: process.env.AI_LLAMA_5060TI_URL || "http://192.168.219.128:8336/v1",
       // 서버에 이 이름의 모델이 없으면 실제로 올라와 있는 모델을 자동으로 쓴다
-      modelName: "gemma",
+      modelName: "/home/nbg/models/gemma-4-12B-it-Q8_0.gguf",
       priority: 1,
       description: "로컬 서버 (RTX 5060 Ti 16GB) - 주력 모델",
     },
