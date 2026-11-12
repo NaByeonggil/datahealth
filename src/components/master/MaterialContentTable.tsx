@@ -18,6 +18,8 @@ import {
 import { Plus, Pencil, Trash2, Search, RotateCcw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { toast } from "sonner";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
+import ExcelExportButton from "@/components/master/ExcelExportButton";
+import { exportMaterialContents } from "@/lib/exports/masterExcel";
 
 type SourceType = "material" | "catalog";
 interface ContentRow {
@@ -156,7 +158,10 @@ export default function MaterialContentTable() {
           원료·취급품목의 규격에서 읽어 낸 함유량입니다. 원료를 저장하면 규격에서 자동으로 다시 읽으며,
           직접 수정한 행은 자동 추출이 덮어쓰지 않습니다.
         </p>
-        <Button onClick={openCreate} className="shrink-0"><Plus className="h-4 w-4 mr-2" />새로 등록</Button>
+        <div className="flex gap-2 shrink-0">
+          <ExcelExportButton onExport={() => exportMaterialContents({ sourceType, status, search })} />
+          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />새로 등록</Button>
+        </div>
       </div>
 
       <div className="flex gap-2 items-center flex-wrap">

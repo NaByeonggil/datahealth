@@ -61,6 +61,27 @@ export async function exportMaterials(filter: { supplierId?: string; search?: st
   return list.length;
 }
 
+/** 원료 함유량 (현재 화면의 구분·상태·검색 필터 적용) — 함량이 없으면 "없음"으로 적는다 */
+export async function exportMaterialContents(filter: { sourceType?: string; status?: string; search?: string } = {}) {
+  const params = new URLSearchParams({ page: "1", limit: "100000" });
+  if (filter.sourceType) params.set("sourceType", filter.sourceType);
+  if (filter.status) params.set("status", filter.status);
+  if (filter.search) params.set("search", filter.search);
+  const list = await getJson(`/api/material-contents?${params}`);
+  const STATUS: Record<string, string> = { 추출: "함량 있음", 함량없음: "없음", 규격없음: "없음 (규격 없음)" };
+  download("원료함유량", [{
+    name: "함유량",
+    headers: ["구분", "원료코드", "원료명", "공급사", "지표성분", "함유량", "상한", "단위", "조건", "상태", "직접입력", "규격 원문", "규격 내 함량 표기", "비고", "수정일"],
+    rows: list.map((r: Row) => [
+      r.sourceType === "material" ? "원료" : "취급품목", r.material?.code,
+      r.name, (r.material ?? r.catalog)?.supplier?.name, r.component,
+      r.amount ?? "없음", r.amountMax, r.unit, r.qualifier, STATUS[r.status] || r.status,
+      yn(r.isManual), r.specification, r.matches, r.note, date(r.updatedAt),
+    ]),
+  }]);
+  return list.length;
+}
+
 /** 부자재 세트 — 세트 요약 시트 + 구성 품목 시트 */
 export async function exportPackagingSets(search = "") {
   const sets = await getJson(`/api/packaging/sets?search=${encodeURIComponent(search)}`);
