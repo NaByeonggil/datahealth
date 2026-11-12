@@ -15,6 +15,7 @@
     "setup": "bash scripts/setup.sh",
     "verify:calc": "npx tsx scripts/verify-detailed-calc.ts",
     "import:tolling": "npx tsx scripts/import-tolling.ts",
+    "extract:content": "npx tsx scripts/extract-material-content.ts",
     "create-admin": "npx tsx scripts/create-admin.ts"
   },
   "dependencies": {
