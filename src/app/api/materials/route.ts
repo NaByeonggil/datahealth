@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { openInitialPrice } from "@/lib/materials/priceHistory";
+import { syncMaterialContent } from "@/lib/materials/content";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
       effectiveDate: body.effectiveDate ? new Date(body.effectiveDate) : null,
       changedBy: body.updatedBy || "관리자",
     });
+    await syncMaterialContent(tx, created);
 
     return created;
   });

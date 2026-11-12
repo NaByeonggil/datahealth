@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { recordPriceChange } from "@/lib/materials/priceHistory";
+import { syncMaterialContent } from "@/lib/materials/content";
 
 /**
  * 원료 수정.
@@ -40,6 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         changedBy: body.updatedBy || "관리자",
         changeReason: body.changeReason || null,
       });
+      await syncMaterialContent(tx, updated);
 
       return updated;
     });

@@ -148,8 +148,8 @@ model MaterialCatalog {
 // 원료 함유량 — Material / MaterialCatalog 의 규격(자유 텍스트)에서 뽑아낸 함량
 //
 // 원료·카탈로그 한 건당 한 행. 규격이 비었거나 함량을 읽어 내지 못한 경우도
-// 행을 만들어 status 로 "없음"을 드러낸다. scripts/extract-material-content.ts 가
-// 전부 지우고 다시 채우므로 손으로 고치지 않는다.
+// 행을 만들어 status 로 "없음"을 드러낸다. scripts/extract-material-content.ts 와
+// 원료 저장 시 자동으로 다시 채우지만, 화면에서 손본 행(isManual)은 건드리지 않는다.
 model MaterialContent {
   id            String   @id @default(cuid())
   sourceType    String                // material / catalog
@@ -166,7 +166,10 @@ model MaterialContent {
   unit          String?               // % / mg/g / 억CFU/g / Brix / 유닛/g …
   qualifier     String?               // 이상 / 이하
   matches       String?               // 규격에서 찾은 함량 표현 전부 (" | " 구분)
+  isManual      Boolean  @default(false) // 사람이 직접 입력·수정한 행 — 자동 추출이 덮어쓰지 않는다
+  note          String?
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
 
   @@index([status])
 }

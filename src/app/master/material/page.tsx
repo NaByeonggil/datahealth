@@ -18,6 +18,7 @@ import {
 import { Plus, Pencil, Trash2, Search, Columns3, ChevronsLeftRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, History } from "lucide-react";
 import { toast } from "sonner";
 import MaterialCatalogTable from "@/components/master/MaterialCatalogTable";
+import MaterialContentTable from "@/components/master/MaterialContentTable";
 import MaterialPriceHistoryDialog from "@/components/master/MaterialPriceHistoryDialog";
 import ExcelExportButton from "@/components/master/ExcelExportButton";
 import { exportMaterials } from "@/lib/exports/masterExcel";
@@ -49,7 +50,7 @@ export default function MaterialPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
-  const [tab, setTab] = useState<"material" | "catalog">("material");
+  const [tab, setTab] = useState<"material" | "catalog" | "content">("material");
 
   useEffect(() => {
     fetch("/api/suppliers?all=true").then(r => r.json()).then((res) =>
@@ -157,9 +158,16 @@ export default function MaterialPage() {
           }`}
           onClick={() => setTab("catalog")}
         >취급품목 (단가 미확보)</button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            tab === "content" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => setTab("content")}
+        >함유량</button>
       </div>
 
       {tab === "catalog" && <MaterialCatalogTable suppliers={suppliers} />}
+      {tab === "content" && <MaterialContentTable />}
 
       {tab === "material" && (<>
       <div className="flex gap-2 items-center">

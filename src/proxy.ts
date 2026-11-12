@@ -52,6 +52,7 @@ const RULES: { prefix: string; allow: (role: string) => boolean; label: string }
   { prefix: "/ai", allow: canViewCost, label: "AI 어시스턴트" },
   { prefix: "/api/materials", allow: canViewCost, label: "원료 단가" },
   { prefix: "/api/material-catalog", allow: canViewCost, label: "취급품목" },
+  { prefix: "/api/material-contents", allow: canEditMaster, label: "원료 함유량" },
   { prefix: "/api/supplies", allow: canViewCost, label: "자재 단가" },
   { prefix: "/api/suppliers", allow: canEditMaster, label: "공급사" },
   { prefix: "/api/processes", allow: canViewCost, label: "공정비" },
