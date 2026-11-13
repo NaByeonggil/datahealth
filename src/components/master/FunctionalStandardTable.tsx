@@ -21,10 +21,13 @@ import ConfirmDialog from "@/components/common/ConfirmDialog";
 import ExcelExportButton from "@/components/master/ExcelExportButton";
 import { formatContent } from "@/components/master/MaterialContentTable";
 import { exportFunctionalStandards } from "@/lib/exports/masterExcel";
+import { formatDaily } from "@/lib/materials/functionalDaily";
 
 export interface Standard {
   id: string; code: string | null; group: string; name: string; component: string | null;
   keywords: string; excludes: string | null; note: string | null;
+  dailyMin: number | null; dailyMax: number | null; dailyUnit: string | null; dailyBasis: string | null;
+  quoteMin: number | null; dailyVerified: boolean; dailyNote: string | null;
   counts: { material: number; catalog: number };
 }
 interface Row {
@@ -37,7 +40,11 @@ interface Row {
   } | null;
 }
 
-const emptyForm = { code: "", group: "기능성원료", name: "", component: "", keywords: "", excludes: "", note: "" };
+const emptyForm = {
+  code: "", group: "기능성원료", name: "", component: "", keywords: "", excludes: "", note: "",
+  dailyMin: "", dailyMax: "", dailyUnit: "", dailyBasis: "성분", quoteMin: "", dailyVerified: "false", dailyNote: "",
+};
+const numStr = (v: number | null) => (v == null ? "" : String(v));
 const label = (s: Pick<Standard, "code" | "name">) => (s.code ? `${s.code} ${s.name}` : s.name);
 
 export default function FunctionalStandardTable() {
@@ -82,6 +89,9 @@ export default function FunctionalStandardTable() {
     setForm({
       code: s.code ?? "", group: s.group, name: s.name, component: s.component ?? "",
       keywords: s.keywords, excludes: s.excludes ?? "", note: s.note ?? "",
+      dailyMin: numStr(s.dailyMin), dailyMax: numStr(s.dailyMax), dailyUnit: s.dailyUnit ?? "",
+      dailyBasis: s.dailyBasis ?? "성분", quoteMin: numStr(s.quoteMin),
+      dailyVerified: String(s.dailyVerified), dailyNote: s.dailyNote ?? "",
     });
     setEditOpen(true);
   };
@@ -168,6 +178,10 @@ export default function FunctionalStandardTable() {
           <span><span className="text-muted-foreground">공전 번호</span> {selected.code || "-"}</span>
           <span><span className="text-muted-foreground">구분</span> {selected.group}</span>
           <span><span className="text-muted-foreground">기능(지표)성분</span> {selected.component || "-"}</span>
+          <span>
+            <span className="text-muted-foreground">1일 섭취량</span> {formatDaily(selected) ?? "미등록"}
+            {formatDaily(selected) && !selected.dailyVerified && <Badge variant="outline" className="ml-1">초안</Badge>}
+          </span>
           <span><span className="text-muted-foreground">단가 확보</span> {selected.counts.material}건</span>
           <span><span className="text-muted-foreground">단가 미확보</span> {selected.counts.catalog}건</span>
           <span className="text-muted-foreground">키워드: {selected.keywords}{selected.excludes ? ` / 제외: ${selected.excludes}` : ""}</span>
@@ -312,6 +326,7 @@ export default function FunctionalStandardTable() {
                 <TableHead className="w-16">번호</TableHead>
                 <TableHead>공전 원료</TableHead>
                 <TableHead>기능(지표)성분</TableHead>
+                <TableHead className="whitespace-nowrap">1일 섭취량</TableHead>
                 <TableHead>매칭 키워드</TableHead>
                 <TableHead className="text-right whitespace-nowrap">확보/미확보</TableHead>
                 <TableHead className="w-24">관리</TableHead>
@@ -326,6 +341,13 @@ export default function FunctionalStandardTable() {
                     <span className="ml-1 text-xs text-muted-foreground">{s.group}</span>
                   </TableCell>
                   <TableCell className="text-sm">{s.component || "-"}</TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {formatDaily(s) ?? <span className="text-muted-foreground">-</span>}
+                    {formatDaily(s) && (s.dailyVerified
+                      ? <Badge variant="secondary" className="ml-1">확인</Badge>
+                      : <Badge variant="outline" className="ml-1">초안</Badge>)}
+                    {s.quoteMin != null && <div className="text-xs text-muted-foreground">견적 기준 {s.quoteMin} {s.dailyUnit}</div>}
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[280px]">
                     {s.keywords}{s.excludes && <span className="text-destructive"> / 제외: {s.excludes}</span>}
                   </TableCell>
@@ -344,7 +366,7 @@ export default function FunctionalStandardTable() {
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editItem ? "공전 원료 수정" : "공전 원료 추가"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -380,6 +402,50 @@ export default function FunctionalStandardTable() {
             <div className="col-span-2">
               <Label>비고</Label>
               <Input value={form.note} onChange={e => setField("note", e.target.value)} />
+            </div>
+
+            <div className="col-span-2 border-t pt-3 text-sm font-medium">
+              1일 섭취량 기준 <span className="text-xs font-normal text-muted-foreground">AI 견적에서 최소 투입량 계산에 씁니다</span>
+            </div>
+            <div>
+              <Label>하한</Label>
+              <Input inputMode="decimal" value={form.dailyMin} onChange={e => setField("dailyMin", e.target.value)} />
+            </div>
+            <div>
+              <Label>상한</Label>
+              <Input inputMode="decimal" value={form.dailyMax} onChange={e => setField("dailyMax", e.target.value)} />
+            </div>
+            <div>
+              <Label>단위</Label>
+              <Input list="daily-units" value={form.dailyUnit} placeholder="mg / μg / g / 억CFU" onChange={e => setField("dailyUnit", e.target.value)} />
+              <datalist id="daily-units">
+                {["mg", "μg", "g", "억CFU", "μg RAE", "mg α-TE", "mg NE", "μg DFE"].map(u => <option key={u} value={u} />)}
+              </datalist>
+            </div>
+            <div>
+              <Label>기준</Label>
+              <Select value={form.dailyBasis} onValueChange={v => setField("dailyBasis", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="성분">지표성분 함량</SelectItem>
+                  <SelectItem value="원료">원료 자체 중량</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>회사 견적 기준량 <span className="text-xs text-muted-foreground">비우면 하한</span></Label>
+              <Input inputMode="decimal" value={form.quoteMin} onChange={e => setField("quoteMin", e.target.value)} />
+            </div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" className="h-4 w-4" checked={form.dailyVerified === "true"}
+                  onChange={e => setField("dailyVerified", String(e.target.checked))} />
+                공전 원문과 대조 완료
+              </label>
+            </div>
+            <div className="col-span-2">
+              <Label>근거 메모</Label>
+              <Input value={form.dailyNote} placeholder="기능성별 차이, 출처 등" onChange={e => setField("dailyNote", e.target.value)} />
             </div>
           </div>
           <DialogFooter>

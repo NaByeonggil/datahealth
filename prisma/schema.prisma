@@ -188,6 +188,14 @@ model FunctionalStandard {
   keywords   String                    // 원료명 매칭 키워드 (쉼표 구분)
   excludes   String?                   // 이 말이 들어가면 제외 (쉼표 구분)
   note       String?
+  // 1일 섭취량 기준 — AI 견적에서 원료 최소 투입량을 계산하는 근거
+  dailyMin      Float?               // 1일 섭취량 하한
+  dailyMax      Float?               // 1일 섭취량 상한
+  dailyUnit     String?              // mg / μg / g / 억CFU (μg RAE·mg α-TE 등 환산 단위는 접미어로 적는다)
+  dailyBasis    String?              // 성분(기본, 지표성분 기준) / 원료(원료 자체 중량 기준)
+  quoteMin      Float?               // 회사 견적 기준량 — 비우면 dailyMin 을 쓴다
+  dailyVerified Boolean  @default(false) // 담당자가 공전 원문과 대조했는가 (초안은 false)
+  dailyNote     String?              // 근거·기능성별 차이 메모
   sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @default(now()) @updatedAt

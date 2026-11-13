@@ -6,6 +6,7 @@ import { calculateProcessingCost } from "./functions/calculateProcessingCost";
 import { calculatePackagingCost } from "./functions/calculatePackagingCost";
 import { generateQuotation } from "./functions/generateQuotation";
 import { searchQuotations, getQuotation } from "./functions/quotations";
+import { checkFunctionalStandard } from "./functions/checkFunctionalStandard";
 import type { FunctionCallLog } from "@/types/ai";
 
 /** 도구 결과를 모델에 돌려줄 때의 상한. 로컬 모델은 컨텍스트가 작다. */
@@ -34,6 +35,22 @@ export const functionDefinitions: FunctionDef[] = [
         quantityKg: { type: "number", description: "투입량 (kg)" },
       },
       required: ["materialName"],
+    },
+  },
+  {
+    name: "check_functional_standard",
+    description:
+      "건기식 공전 원료의 1일 섭취량 기준으로 원료 최소 투입량(kg)을 계산합니다. 공전 원료명(예: 홍삼, 밀크씨슬)으로 부르면 후보 원료별 필요량을, materialCode 를 주면 그 원료의 필요량과 요청 투입량의 충족 여부를 돌려줍니다.",
+    parameters: {
+      type: "object",
+      properties: {
+        keyword: { type: "string", description: "공전 원료명 또는 원료명 (예: 홍삼, 루테인, 밀크씨슬)" },
+        materialCode: { type: "string", description: "원료 코드 (원료를 정했을 때)" },
+        daysPerUnit: { type: "number", description: "제품 1개에 든 섭취일수 (예: 30일분 박스=30, 1일 1병 바이알=1)" },
+        productionQty: { type: "number", description: "생산 수량 (개)" },
+        plannedKg: { type: "number", description: "사용자가 말한 투입량 (kg). 있으면 기준 충족 여부를 판정" },
+      },
+      required: [],
     },
   },
   {
@@ -122,6 +139,7 @@ export const functionDefinitions: FunctionDef[] = [
 // 함수 실행기
 const functionExecutors: Record<string, (args: Record<string, unknown>) => Promise<unknown>> = {
   search_raw_materials: (args) => searchRawMaterials(args as { keyword: string }),
+  check_functional_standard: (args) => checkFunctionalStandard(args as Parameters<typeof checkFunctionalStandard>[0]),
   get_material_price: (args) => getMaterialPrice(args as { materialName: string; quantityKg?: number }),
   calculate_processing_cost: (args) => calculateProcessingCost(args as { productTypeName: string; productionQty: number }),
   calculate_packaging_cost: (args) => calculatePackagingCost(args as { productionQty: number; packagingName?: string }),

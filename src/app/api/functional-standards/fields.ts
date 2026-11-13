@@ -11,7 +11,20 @@ export function standardFields(body: Record<string, unknown>) {
     keywords: list(body.keywords) ?? "",
     excludes: list(body.excludes),
     note: str(body.note),
+    dailyMin: num(body.dailyMin),
+    dailyMax: num(body.dailyMax),
+    dailyUnit: str(body.dailyUnit),
+    dailyBasis: str(body.dailyBasis) === "원료" ? "원료" : "성분",
+    quoteMin: num(body.quoteMin),
+    dailyVerified: body.dailyVerified === true || body.dailyVerified === "true",
+    dailyNote: str(body.dailyNote),
   };
+}
+
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(String(v).replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
 }
 
 export function duplicateError(error: unknown) {
