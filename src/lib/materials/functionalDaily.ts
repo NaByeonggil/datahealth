@@ -133,17 +133,106 @@ export interface DoseResult {
   reason?: string;
 }
 
-const norm = (s: string) => s.toLowerCase().replace(/[\s·・()[\]\-_,./+]/g, "");
+// 공백·기호를 먼저 지우고 vitamin / vit(c, b12, d3 …) 를 "비타민"으로 맞춘다
+const norm = (s: string) =>
+  s.toLowerCase().replace(/[\s·・()[\]\-_,./+=&:]/g, "")
+    .replace(/vitamin/g, "비타민").replace(/^vit(?=[a-z]\d{0,2}$)/, "비타민");
+// 영문과 한글이 붙어 있으면("EPA와") 나눠서 단어로 본다
+const tokens = (s: string) =>
+  s.toLowerCase()
+    .replace(/([a-z0-9])([가-힣])/g, "$1 $2").replace(/([가-힣])([a-z0-9])/g, "$1 $2")
+    .split(/[\s·・()[\]\-_,./+=&:]+/).filter(Boolean);
+
+/**
+ * 지표성분 동의어 — 한 줄이 같은 성분. 규격의 영문·약어·다른 표기를 공전 성분명과 같게 본다.
+ * 3글자 이하 영문(Fe, Zn, EPA …)은 다른 말 속에 섞여 잘못 걸리지 않도록 단어가 정확히 같을 때만 인정한다.
+ */
+export const COMPONENT_ALIASES: string[][] = [
+  ["비타민c", "아스코브산", "ascorbicacid", "ascorbate"],
+  ["칼슘", "ca", "calcium"],
+  ["마그네슘", "mg", "magnesium"],
+  ["철", "fe", "iron"],
+  ["아연", "zn", "zinc"],
+  ["구리", "cu", "copper"],
+  ["셀레늄", "셀렌", "se", "selenium"],
+  ["요오드", "iodine"],
+  ["망간", "mn", "manganese"],
+  ["크롬", "cr", "chromium"],
+  ["몰리브덴", "mo", "molybdenum"],
+  ["베타카로틴", "betacarotene", "β카로틴"],
+  ["엽산", "folicacid", "folate"],
+  ["비오틴", "biotin"],
+  ["판토텐산", "pantothenicacid"],
+  ["나이아신", "니아신", "niacin"],
+  ["식이섬유", "dietaryfiber", "dietaryfibre", "fiber", "fibre"],
+  ["단백질", "protein"],
+  ["진세노사이드", "ginsenoside", "ginsenosides"],
+  ["엽록소", "클로로필", "chlorophyll"],
+  ["카테킨", "catechin", "catechins", "egcg"],
+  ["무수바바로인", "바바로인", "알로인", "aloin", "barbaloin"],
+  ["플라보노이드", "flavonoid", "flavonoids"],
+  ["코엔자임q10", "coenzymeq10", "coq10", "유비퀴논", "ubiquinone", "ubidecarenone"],
+  ["이소플라본", "isoflavone", "isoflavones"],
+  ["폴리페놀", "polyphenol", "polyphenols"],
+  ["코로솔산", "corosolicacid"],
+  ["플라보놀배당체", "flavonolglycoside", "flavonolglycosides", "flavoneglycoside", "flavoneglycosides"],
+  ["실리마린", "silymarin"],
+  ["epa", "dha", "epadha", "omega3", "오메가3"],
+  ["감마리놀렌산", "gla", "gammalinolenicacid", "γ리놀렌산"],
+  ["스쿠알렌", "squalene"],
+  ["식물스테롤", "phytosterol", "phytosterols", "plantsterol"],
+  ["알콕시글리세롤", "alkoxyglycerol"],
+  ["옥타코사놀", "octacosanol"],
+  ["공액리놀레산", "cla", "conjugatedlinoleicacid"],
+  ["hca", "hydroxycitricacid", "하이드록시시트르산", "수산화구연산"],
+  ["루테인", "lutein"],
+  ["지아잔틴", "제아잔틴", "zeaxanthin"],
+  ["아스타잔틴", "아스타크산틴", "astaxanthin"],
+  ["로르산", "lauricacid", "라우르산"],
+  ["포스파티딜세린", "phosphatidylserine", "ps"],
+  ["글루코사민", "glucosamine"],
+  ["n아세틸글루코사민", "nacetylglucosamine", "nag"],
+  ["뮤코다당", "mucopolysaccharide", "콘드로이친", "chondroitin"],
+  ["다당체", "다당채", "polysaccharide", "polysaccharides"],
+  ["베타글루칸", "betaglucan", "β글루칸"],
+  ["키토산", "chitosan"],
+  ["프락토올리고당", "fos", "fructooligosaccharide"],
+  ["생균수", "cfu", "생균", "probiotics"],
+  ["모나콜린k", "모나콜린", "monacolink", "monacolin"],
+  ["테아닌", "theanine", "ltheanine"],
+  ["msm", "엠에스엠", "methylsulfonylmethane", "식이유황"],
+  ["히알루론산", "hyaluronicacid", "ha", "히알루론산나트륨", "sodiumhyaluronate"],
+  ["안토시아노사이드", "anthocyanoside", "anthocyanosides", "안토시아닌", "anthocyanin"],
+  ["포스콜린", "forskolin"],
+  ["라피노스", "raffinose"],
+];
+
+/** 이 이름(정규화·단어)이 동의어 줄의 어느 말과 맞는가 */
+function aliasHit(alias: string, normed: string, words: string[]): boolean {
+  return alias.length <= 3 && /^[a-z0-9]+$/.test(alias) ? words.includes(alias) : normed.includes(alias);
+}
+
+/** 이름에 해당하는 동의어 줄들 */
+function aliasGroups(name: string): string[][] {
+  const n = norm(name);
+  const w = tokens(name);
+  return COMPONENT_ALIASES.filter((g) => g.some((a) => aliasHit(a, n, w)));
+}
 
 /** 함유량의 지표성분이 공전 성분과 같은 것인가. 모르면 null */
 function sameComponent(std: StandardDaily, contentComponent: string | null): boolean | null {
   if (!contentComponent) return null;
   const c = norm(contentComponent);
+  const cw = tokens(contentComponent);
   // 원료명(예: "홍삼 100%")은 배합 비율이지 지표성분 함량이 아니므로 기능(지표)성분명으로만 비교한다.
   // 영양성분처럼 성분명이 곧 원료명인 경우에만 매칭 키워드도 본다.
   const names = [std.component ?? std.name];
   if (!std.component || norm(std.component) === norm(std.name)) names.push(...std.keywords.split(","));
-  return names.map(norm).some((n) => n && (c.includes(n) || n.includes(c)));
+  // 성분명 일부만 적힌 경우(n.includes(c))는 짧은 영문을 빼고 인정한다 — "Rg3" 는 "Rg1·Rb1·Rg3 합"이 아니다
+  const shortLatin = /^[a-z0-9]{1,3}$/.test(c);
+  if (names.map(norm).some((n) => n && (c.includes(n) || (!shortLatin && n.includes(c))))) return true;
+  // 동의어 (영문·약어·다른 표기)
+  return aliasGroups(std.component ?? std.name).some((g) => g.some((a) => aliasHit(a, c, cw)));
 }
 
 export function calcDose(
