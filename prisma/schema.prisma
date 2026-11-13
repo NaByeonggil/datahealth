@@ -174,6 +174,25 @@ model MaterialContent {
   @@index([status])
 }
 
+// 건강기능식품 공전 원료(고시형) 기준 — 원료·취급품목을 이름으로 묶어 보는 기준표
+//
+// 원료 쪽에 공전 여부를 따로 저장하지 않는다. 화면을 열 때마다 keywords 로
+// 원료명을 맞춰 보고(취급품목은 refCode 가 공전번호면 그것도 쓴다) 묶는다.
+// 키워드를 고치면 곧바로 반영된다. 기본 목록은 scripts/seed-functional-standards.ts.
+model FunctionalStandard {
+  id         String   @id @default(cuid())
+  code       String?  @unique          // 공전 번호 (1-14, 2-2 …) — 모르면 비워 둔다
+  group      String                    // 영양성분 / 기능성원료
+  name       String   @unique          // 공전 원료명
+  component  String?                   // 기능(지표)성분
+  keywords   String                    // 원료명 매칭 키워드 (쉼표 구분)
+  excludes   String?                   // 이 말이 들어가면 제외 (쉼표 구분)
+  note       String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+}
+
 // 배합 템플릿 — 되풀이해 쓰는 주원료 조합을 저장해 두고 견적서에 얹는다.
 // 항목 구조를 SimpleQuotationItem 과 같게 맞춰 견적서 배합으로 그대로 복사된다.
 //

@@ -82,6 +82,56 @@ export async function exportMaterialContents(filter: { sourceType?: string; stat
   return list.length;
 }
 
+/**
+ * 건기식 공전 원료 (현재 화면의 공전 원료·구분·검색 필터 적용)
+ * 원료가 여러 공전 원료에 걸리면 공전 원료마다 한 행씩 적어 엑셀 필터로 골라 보기 쉽게 한다.
+ * 두 번째 시트는 공전 원료 기준표와 단가 확보/미확보 건수.
+ */
+export async function exportFunctionalStandards(filter: { standardId?: string; sourceType?: string; search?: string } = {}) {
+  const params = new URLSearchParams({ page: "1", limit: "100000" });
+  if (filter.standardId) params.set("standardId", filter.standardId);
+  if (filter.sourceType) params.set("sourceType", filter.sourceType);
+  if (filter.search) params.set("search", filter.search);
+  const [standards, list] = await Promise.all([
+    getJson("/api/functional-standards"),
+    getJson(`/api/functional-standards/materials?${params}`),
+  ]);
+  const byId = new Map<string, Row>(standards.map((s: Row) => [s.id, s]));
+  const content = (c: Row | null) => {
+    if (c?.amount == null) return "없음";
+    const range = `${c.amount}${c.amountMax != null ? `~${c.amountMax}` : ""}`;
+    return `${range}${c.unit === "Brix" ? " Brix" : c.unit ?? ""}${c.qualifier ? ` ${c.qualifier}` : ""}`;
+  };
+  const rows: Cell[][] = [];
+  for (const r of list as Row[]) {
+    const ids: string[] = filter.standardId ? [filter.standardId] : r.standardIds;
+    for (const id of ids) {
+      const s = byId.get(id);
+      rows.push([
+        s?.code, s?.name, s?.group, s?.component,
+        r.sourceType === "material" ? "확보" : "미확보", r.sourceType === "material" ? "원료" : "취급품목",
+        r.materialCode, r.name, r.supplier, r.category, r.unitPrice, r.unit,
+        r.content?.component, content(r.content), r.specification,
+      ]);
+    }
+  }
+  download("건기식공전원료", [
+    {
+      name: "공전 원료",
+      headers: ["공전번호", "공전 원료", "공전 구분", "기능(지표)성분", "단가", "구분", "원료코드", "원료명", "공급사", "분류", "단가(원)", "단위", "지표성분(규격)", "함유량", "규격 원문"],
+      rows,
+    },
+    {
+      name: "공전 기준표",
+      headers: ["공전번호", "공전 원료", "구분", "기능(지표)성분", "단가 확보(건)", "단가 미확보(건)", "매칭 키워드", "제외 키워드", "비고"],
+      rows: standards.map((s: Row) => [
+        s.code, s.name, s.group, s.component, s.counts?.material ?? 0, s.counts?.catalog ?? 0, s.keywords, s.excludes, s.note,
+      ]),
+    },
+  ]);
+  return rows.length;
+}
+
 /** 부자재 세트 — 세트 요약 시트 + 구성 품목 시트 */
 export async function exportPackagingSets(search = "") {
   const sets = await getJson(`/api/packaging/sets?search=${encodeURIComponent(search)}`);
