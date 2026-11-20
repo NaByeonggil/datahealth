@@ -55,6 +55,11 @@ export default function SimpleQuotationForm({ quotationId, inquiryId }: SimpleQu
   const [saving, setSaving] = useState(false);
   /** 수정 모드에서 기존 견적서를 불러오는 중 */
   const [loading, setLoading] = useState(Boolean(quotationId));
+  const [loadingFor, setLoadingFor] = useState(quotationId);
+  if (quotationId !== loadingFor) {
+    setLoadingFor(quotationId);
+    setLoading(Boolean(quotationId));
+  }
   const isEdit = Boolean(quotationId);
   /** 배합 템플릿 다이얼로그를 연 제품 번호 (null = 닫힘) */
   const [templatePickerFor, setTemplatePickerFor] = useState<number | null>(null);
@@ -88,7 +93,6 @@ export default function SimpleQuotationForm({ quotationId, inquiryId }: SimpleQu
         .catch(() => toast.error("홈페이지 문의 정보를 불러오지 못했습니다. 고객 정보를 직접 입력해주세요."));
       return;
     }
-    setLoading(true);
     fetch(`/api/quotation/simple/${quotationId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((q) => load(q))

@@ -75,9 +75,9 @@ export default function TollingLookupDialog({
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
 
-  const search = useCallback(() => {
-    setLoading(true);
-    const qs = new URLSearchParams({ formName, quantity: String(quantity) });
+  /** 조회 요청만 보낸다. 로딩 표시는 부르는 쪽에서 켠다. */
+  const fetchCandidates = useCallback((name: string, qty: number) => {
+    const qs = new URLSearchParams({ formName: name, quantity: String(qty) });
     if (defaultSpecValue) qs.set("specValue", String(defaultSpecValue));
     fetch(`/api/tolling/resolve?${qs}`)
       .then((r) => r.json())
@@ -86,17 +86,28 @@ export default function TollingLookupDialog({
         setExtras(res.extras || []);
       })
       .finally(() => setLoading(false));
-  }, [formName, quantity, defaultSpecValue]);
+  }, [defaultSpecValue]);
 
-  useEffect(() => {
-    if (!open) return;
-    setFormName(defaultFormName);
-    setQuantity(defaultQuantity);
-    setChecked(new Set());
-  }, [open, defaultFormName, defaultQuantity]);
+  const search = () => {
+    setLoading(true);
+    fetchCandidates(formName, quantity);
+  };
 
+  // 열릴 때마다 기본 조건으로 되돌린다 (렌더 중에 조정)
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setFormName(defaultFormName);
+      setQuantity(defaultQuantity);
+      setChecked(new Set());
+      setLoading(true);
+    }
+  }
+
+  // 열리면 기본 조건으로 바로 조회한다
   useEffect(() => {
-    if (open) search();
+    if (open) fetchCandidates(defaultFormName, defaultQuantity);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

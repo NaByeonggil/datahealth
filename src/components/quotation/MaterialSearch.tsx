@@ -49,8 +49,11 @@ export default function MaterialSearch({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // 최신 콜백을 ref 로 들고 있는다 — 렌더 중에 ref 를 쓰지 않도록 effect 에서 갱신
   const onManualChangeRef = useRef(onManualChange);
-  onManualChangeRef.current = onManualChange;
+  useEffect(() => {
+    onManualChangeRef.current = onManualChange;
+  }, [onManualChange]);
 
   const updatePos = () => {
     if (inputRef.current) {

@@ -49,6 +49,8 @@ export default function HomepageInquiryPage({ params }: { params: Promise<{ exte
     }
   }, [externalId]);
 
+  // 비동기 로더라 setState 는 await 이후에 일어난다 — set-state-in-effect 규칙이 함수 안의 await 를 구분하지 못하는 오탐
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const send = async () => {

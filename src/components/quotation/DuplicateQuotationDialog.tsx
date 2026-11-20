@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -38,16 +38,18 @@ export default function DuplicateQuotationDialog({ target, onOpenChange, gotoEdi
   });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!target) return;
-    setForm({
+  // 대상이 바뀌면 폼을 그 견적으로 채운다 (effect 가 아니라 렌더 중에 조정 — React 권장 방식)
+  const [prevTarget, setPrevTarget] = useState<typeof target>(null);
+  if (target !== prevTarget) {
+    setPrevTarget(target);
+    if (target) setForm({
       productName: target.productName,
       customerName: target.customerName || "",
       customerContact: "",
       customerPhone: "",
       customerFax: "",
     });
-  }, [target]);
+  }
 
   const isSimple = target?.type === "simple";
 

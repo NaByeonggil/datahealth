@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,13 +37,12 @@ export default function DetailedQuotationDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   /** 복제 대상 — 수신처만 바꿔 다시 낼 때 */
   const [duplicateTarget, setDuplicateTarget] = useState<DuplicateTarget | null>(null);
-  const [view, setView] = useState<"normal" | "sheet" | "sheet2">("normal");
-
   // ?view=sheet | sheet2 로 들어오면 해당 엑셀 양식으로 연다 (목록에서 바로 진입)
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("view");
-    if (q === "sheet" || q === "sheet2") setView(q);
-  }, []);
+  const searchParams = useSearchParams();
+  const [view, setView] = useState<"normal" | "sheet" | "sheet2">(() => {
+    const q = searchParams.get("view");
+    return q === "sheet" || q === "sheet2" ? q : "normal";
+  });
 
   const changeView = (next: "normal" | "sheet" | "sheet2") => {
     setView(next);

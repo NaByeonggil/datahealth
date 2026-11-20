@@ -31,15 +31,15 @@ export default function ProcessingCostPage() {
   const [filterType, setFilterType] = useState("");
   const [newCosts, setNewCosts] = useState<Record<string, { cost: string; reason: string }>>({});
 
-  useEffect(() => {
-    fetch("/api/product-types?all=true").then(r => r.json()).then(setTypes);
-    fetchHistory();
-  }, []);
-
   const fetchHistory = (typeId?: string) => {
     const url = typeId ? `/api/processing-costs?productTypeId=${typeId}` : "/api/processing-costs";
     fetch(url).then(r => r.json()).then(setHistory);
   };
+
+  useEffect(() => {
+    fetch("/api/product-types?all=true").then(r => r.json()).then(setTypes);
+    fetchHistory();
+  }, []);
 
   const handleApply = async (typeId: string) => {
     const entry = newCosts[typeId];

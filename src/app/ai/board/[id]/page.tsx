@@ -35,7 +35,9 @@ export default function InquiryDetailPage({ params }: { params: Promise<{ id: st
     setAdminResponse(data.adminResponse ?? "");
   };
 
-  useEffect(() => { fetchInquiry(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 비동기 로더라 setState 는 await 이후에 일어난다 — set-state-in-effect 규칙이 함수 안의 await 를 구분하지 못하는 오탐
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+  useEffect(() => { fetchInquiry(); }, [id]);
 
   const handleProcess = async () => {
     setProcessing(true);

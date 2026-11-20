@@ -44,9 +44,12 @@ export default function MasterSearch({
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
+  // 바깥 value 가 바뀌면 입력값을 따라간다 (렌더 중에 조정)
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
     setQuery(value);
-  }, [value]);
+  }
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

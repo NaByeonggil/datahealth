@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -31,11 +31,15 @@ export default function SaveFormulationTemplateDialog({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    setName(product?.name?.trim() || fallbackName || "");
-    setNote("");
-  }, [open, product, fallbackName]);
+  // 열릴 때마다 이름·메모를 새로 채운다 (렌더 중에 조정)
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setName(product?.name?.trim() || fallbackName || "");
+      setNote("");
+    }
+  }
 
   const items = (product?.items ?? []).filter((i) => i.materialName.trim());
 
