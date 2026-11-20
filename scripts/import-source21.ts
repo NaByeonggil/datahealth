@@ -13,12 +13,13 @@
  *   npx tsx scripts/import-source21.ts                    # 실제 적재
  *   npx tsx scripts/import-source21.ts --file=<xlsx경로>
  */
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import * as XLSX from "xlsx";
 import * as fs from "fs";
 import * as path from "path";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 const argv = process.argv.slice(2);
 const DRY_RUN = argv.includes("--dry-run");

@@ -4,8 +4,9 @@
  * 실제 발행 견적서(모두의모발 등)에 공통으로 들어가던 1~4번 문구다.
  * 이미 등록된 문구가 있으면 아무것도 하지 않으므로 여러 번 실행해도 안전하다.
  */
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import "dotenv/config";
+import { createPrismaClient } from "../src/lib/prisma-client";
+const prisma = createPrismaClient();
 
 const NOTES: { content: string; appliesTo: string }[] = [
   { content: "주원료 함량을 올리시거나 부원료를 추가하시면 단가가 올라갈 수 있습니다.", appliesTo: "ALL" },

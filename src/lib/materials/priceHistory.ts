@@ -7,7 +7,7 @@
  *
  * 이력이 남아야 "이 견적 이후 단가가 바뀌었다"를 언제부터인지까지 말할 수 있다.
  */
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 
 type Tx = Prisma.TransactionClient | PrismaClient;
 

@@ -92,7 +92,7 @@ if [ -f ".env" ]; then
 else
   echo -e "${YELLOW}.env 파일이 없습니다. 생성합니다...${NC}"
   cat > .env << 'ENVEOF'
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="file:./prisma/dev.db"
 ENVEOF
   echo -e "${GREEN}✓ .env 파일 생성 완료${NC}"
 fi

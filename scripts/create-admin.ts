@@ -7,11 +7,12 @@
  * 사용: npm run create-admin -- <아이디> <이름> [비밀번호]
  *       비밀번호를 생략하면 임의로 만들어 화면에 한 번만 보여준다.
  */
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import { randomBytes } from "crypto";
 import { hashPassword, validatePassword } from "../src/lib/auth/password";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function main() {
   const [username, name, passwordArg] = process.argv.slice(2);

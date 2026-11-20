@@ -10,8 +10,9 @@
  *
  * 이미 값이 있으면 건드리지 않으므로 여러 번 실행해도 안전하다.
  */
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import "dotenv/config";
+import { createPrismaClient } from "../src/lib/prisma-client";
+const prisma = createPrismaClient();
 
 /** code → 채울 값. category 는 확실한 것만 채운다 */
 const FILL: Record<string, { formCode: string; category?: string }> = {

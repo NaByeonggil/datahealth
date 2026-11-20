@@ -33,11 +33,12 @@
  *   npx tsx scripts/import-vendor-catalog.ts --dry-run   # 리포트만
  *   npx tsx scripts/import-vendor-catalog.ts             # 적재 + 리포트
  */
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import * as fs from "fs";
 import * as path from "path";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 const DRY_RUN = process.argv.includes("--dry-run");
 const SRC_DIR = path.join(process.cwd(), "data", "vendor-catalog");
 const REPORT_DIR = path.join(process.cwd(), "import-reports");

@@ -13,7 +13,7 @@
  * 함량이 여럿이면 규격에서 가장 앞에 나온 것을 대표값으로 두고 전부는 matches 에 남긴다.
  * 규격이 비었으면 "규격없음", 규격은 있는데 함량을 못 찾으면 "함량없음".
  */
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 
 type Tx = Prisma.TransactionClient | PrismaClient;
 

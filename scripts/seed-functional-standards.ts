@@ -7,10 +7,11 @@
  * 사용법
  *   npx tsx scripts/seed-functional-standards.ts
  */
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import { DEFAULT_STANDARDS } from "../src/lib/materials/functionalStandards";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function main() {
   const existing = await prisma.functionalStandard.findMany({ select: { name: true, code: true } });

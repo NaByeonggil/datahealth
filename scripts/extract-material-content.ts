@@ -9,12 +9,13 @@
  *   npx tsx scripts/extract-material-content.ts --dry-run
  *   npx tsx scripts/extract-material-content.ts
  */
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import * as fs from "fs";
 import * as path from "path";
 import { readContent, type ContentFields } from "../src/lib/materials/content";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 const DRY_RUN = process.argv.includes("--dry-run");
 const REPORT_DIR = path.join(process.cwd(), "import-reports");
 

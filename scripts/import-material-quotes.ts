@@ -14,11 +14,12 @@
  *   npx tsx scripts/import-material-quotes.ts --dry-run
  *   npx tsx scripts/import-material-quotes.ts
  */
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import * as fs from "fs";
 import * as path from "path";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 const DRY_RUN = process.argv.includes("--dry-run");
 const SRC_DIR = path.join(process.cwd(), "data", "material-quotes");
 const REPORT_DIR = path.join(process.cwd(), "import-reports");

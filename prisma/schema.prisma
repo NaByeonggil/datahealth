@@ -1,10 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
+// 접속 주소(DATABASE_URL)는 prisma.config.ts 에서 준다 (Prisma 7)
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 // 제품유형

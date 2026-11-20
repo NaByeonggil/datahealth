@@ -9,12 +9,13 @@
  *
  * 같은 파일을 다시 실행하면 해당 sourceFile 로 적재된 행을 지우고 다시 넣는다(멱등).
  */
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import * as XLSX from "xlsx";
 import fs from "fs";
 import path from "path";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 const DIR =
   process.argv[2] ||
